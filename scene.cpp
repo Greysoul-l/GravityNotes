@@ -11,6 +11,7 @@
 #include "define.h"
 using namespace DirectX;
 
+//aaaaaaa
 static SCENE scene = SCENE_DEBUG_SCORE;
 
 void Init( void )

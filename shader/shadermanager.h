@@ -9,21 +9,23 @@ enum SHADERTYPE {
 	S_UNLIT = 0,
 	S_LAMBERT,
 	S_PHONG,
+	S_RIM_LIGHT,
 	S_MAX,
 };
 
 const std::string filenames[S_MAX] = {
 	"UnlitTexture",
 	"VertexDirectionalLighting",
-	"PixelDirectionalLighting"
+	"PixelDirectionalLighting",
+	"RimLight"
 };
 
 class ShaderManager
 {
 private:
-	ID3D11InputLayout* m_Layout;
-	ID3D11VertexShader* m_VS;
-	ID3D11PixelShader* m_PS;
+	ID3D11InputLayout* m_Layout = nullptr;
+	ID3D11VertexShader* m_VS = nullptr;
+	ID3D11PixelShader* m_PS = nullptr;
 
 public:
 	ShaderManager() = delete;
@@ -36,7 +38,12 @@ public:
 		CreateVertexShader(&m_VS, &m_Layout, vsname.c_str());
 		CreatePixelShader(&m_PS, psname.c_str());
 	}
-	~ShaderManager() = default;
+	~ShaderManager()
+	{
+		SAFE_RELEASE(m_Layout);
+		SAFE_RELEASE(m_VS);
+		SAFE_RELEASE(m_PS);
+	}
 	ID3D11InputLayout* GetVertexLayout() { return m_Layout; }
 	ID3D11VertexShader* GetVertexShader() { return m_VS; }
 	ID3D11PixelShader* GetPixelShader() { return m_PS; }

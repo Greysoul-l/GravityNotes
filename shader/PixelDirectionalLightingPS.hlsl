@@ -20,8 +20,11 @@ void main(in PS_IN In, out float4 outDiffuse : SV_Target)
 
     // テクスチャサンプリング
     float4 texColor = g_Texture.Sample(g_SamplerState, In.TexCoord);
+	float3 baseColor = texColor.rgb * In.Diffuse.rgb;
+	float3 ambient = saturate(Light.Ambient.rgb);
+	float3 diffuse = baseColor * light;
 
     // 最終出力 (ランバート + スペキュラー)
-    outDiffuse.rgb = texColor.rgb * In.Diffuse.rgb * light + specular * Light.Diffuse.rgb;
+	outDiffuse.rgb = saturate(baseColor * ambient + diffuse + specular * Light.Diffuse.rgb);
     outDiffuse.a = texColor.a * In.Diffuse.a;
 }

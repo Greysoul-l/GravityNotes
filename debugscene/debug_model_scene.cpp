@@ -62,6 +62,7 @@ static Billboard* g_pFloorBillboard = nullptr;
 // 配置パラメータ
 static const float MODEL_SPACING = 5.0f;  // モデル同士の間隔
 static const float LABEL_RANGE = 8.0f;  // この距離以内で名前を表示
+static const float RIM_LIGHT_BRIGHTNESS = 1.0f; // リムライトの明るさ（距離減衰なしの定数値で表現）
 
 // 原点キューブ表示用
 static MODEL* g_pCubeModel = nullptr;
@@ -153,7 +154,15 @@ static void ReloadAllModels()
 void DebugModelScene_Initialize(void)
 {
 	// ライト
-	g_pAmbientLight = new AmbientLight(XMFLOAT4(0.5f, 0.5f, 0.5f, 1.0f));
+	g_pAmbientLight = new AmbientLight(XMFLOAT4(0.3f, 0.3f, 0.3f, 1.0f));
+	g_pFloorLight = new PointLight(
+		TRUE,
+		XMFLOAT4(0.0f, 5.0f, -5.0f, 1.0f),
+		XMFLOAT4(0.0f, -1.0f, 0.5f, 0.0f),
+		XMFLOAT4(1.0f, 1.0f, 1.0f, 1.0f),
+		20.0f,
+		1.0f
+	);
 
 	// 床用バッファ・テクスチャの作成
 	g_pFloorBillboard = new Billboard(XMFLOAT3(0.0f, -0.5f, 0.0f), XMFLOAT2(1.0f, 1.0f), XMFLOAT3(90.0f, 0.0f, 0.0f), "asset\\texture\\tex.png", false);
@@ -238,6 +247,10 @@ void DebugModelScene_Draw(void)
 {
 	// 3D 描画
 	SetDepthEnable(true);
+	if (g_pFloorLight && g_pAmbientLight)
+	{
+		g_pFloorLight->Apply(*g_pAmbientLight);
+	}
 
 	// --- 床の描画 ---
 	if (g_pFloorBillboard)
@@ -271,11 +284,20 @@ void DebugModelScene_Draw(void)
 	}
 
 	// 家具描画（展示モデル＋ビルボードアイコン含む）
+	SetParameter(XMFLOAT4(RIM_LIGHT_BRIGHTNESS, 0.0f, 0.0f, 0.0f));
 	for (int i = 0; i < (int)g_Entries.size(); i++)
 	{
 		if (g_Entries[i].pModel)
 		{
-			ModelDraw(g_Entries[i].pModel, g_Entries[i].worldPos, {0,0,0}, {1,1,1});
+			ModelDraw(
+				g_Entries[i].pModel,
+				g_Entries[i].worldPos,
+				{ 0.0f, 0.0f, 0.0f },
+				{ 1.0f, 1.0f, 1.0f },
+				XMFLOAT4(1.0f, 1.0f, 1.0f, 1.0f),
+				false,
+				S_PHONG
+			);
 		}
 	}
 
@@ -288,7 +310,10 @@ void DebugModelScene_Draw(void)
 				g_pCubeModel,
 				g_Entries[i].worldPos,
 				{ 0.0f, 0.0f, 0.0f },
-				{ 1.0f, 1.0f, 1.0f }
+				{ 1.0f, 1.0f, 1.0f },
+				XMFLOAT4(1.0f, 1.0f, 1.0f, 1.0f),
+				false,
+				S_PHONG
 			);
 		}
 	}

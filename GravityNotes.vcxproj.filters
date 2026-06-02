@@ -219,6 +219,12 @@
     <FxCompile Include="shader\PixelDirectionalLightingPS.hlsl">
       <Filter>フレームワーク\シェーダー</Filter>
     </FxCompile>
+    <FxCompile Include="shader\RimLightPS.hlsl">
+      <Filter>フレームワーク\シェーダー</Filter>
+    </FxCompile>
+    <FxCompile Include="shader\RimLightVS.hlsl">
+      <Filter>フレームワーク\シェーダー</Filter>
+    </FxCompile>
   </ItemGroup>
   <ItemGroup>
     <None Include="framework\DirectXTex.inl">

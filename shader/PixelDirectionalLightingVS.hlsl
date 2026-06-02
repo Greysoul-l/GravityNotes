@@ -12,8 +12,19 @@ void main(in VS_IN In, out PS_IN Out)
     In.Normal.w = 0.0f;
     float4 worldNormal = mul(In.Normal, World);
     Out.Normal = worldNormal;
+	
+	float3 materialTint = MaterialDiffuse.rgb;
+	float tintMax = max(max(materialTint.r, materialTint.g), materialTint.b);
+	if (tintMax > 0.001f)
+	{
+		materialTint /= tintMax;
+	}
+	else
+	{
+		materialTint = float3(1.0f, 1.0f, 1.0f);
+	}
 
-    Out.Diffuse = In.Diffuse * MaterialDiffuse;	//モデルそのもののMaterialカラーを乗算（Mayaで言うハイパーシェード）
+	Out.Diffuse.rgb = In.Diffuse.rgb * materialTint; //モデルそのもののMaterialカラーのみを乗算（Mayaで言うハイパーシェード）
     Out.TexCoord = In.TexCoord;
     Out.WorldPosition = mul(In.Position, World);
 }

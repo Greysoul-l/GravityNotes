@@ -27,6 +27,7 @@ void main(in VS_IN In, out PS_IN Out)
 	}
 
 	Out.Diffuse.rgb = In.Diffuse.rgb * materialTint; //モデルそのもののMaterialカラーのみを乗算（Mayaで言うハイパーシェード）
+	Out.Diffuse.a = In.Diffuse.a;
     Out.TexCoord = In.TexCoord;
     Out.WorldPosition = mul(In.Position, World);
 }

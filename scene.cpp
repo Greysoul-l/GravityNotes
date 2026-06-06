@@ -4,6 +4,7 @@
 #include "keyboard.h"
 #include "texture.h"
 #include "title.h"
+#include "stageselect.h"
 #include "result.h"
 #include "debug_model_scene.h"
 #include "debug_lighting_scene.h"
@@ -12,7 +13,7 @@
 using namespace DirectX;
 
 //aaaaaaa
-static SCENE scene = SCENE_DEBUG_SCORE;
+static SCENE scene = SCENE_TITLE;
 
 void Init( void )
 {
@@ -20,6 +21,9 @@ void Init( void )
 	{
 		case SCENE_TITLE:
 		Title_Initialize();
+		break;
+		case SCENE_STAGESELECT:
+		StageSelect_Initialize();
 		break;
 		case SCENE_GAME:
 		Game_Initialize();
@@ -48,6 +52,9 @@ void Update( void )
 		case SCENE_TITLE:
 		Title_Update();
 		break;
+		case SCENE_STAGESELECT:
+		StageSelect_Update();
+		break;
 		case SCENE_GAME:
 		Game_Update();
 		break;
@@ -75,6 +82,9 @@ void Draw( void )
 		case SCENE_TITLE:
 		Title_Draw();
 		break;
+		case SCENE_STAGESELECT:
+		StageSelect_Draw();
+		break;
 		case SCENE_GAME:
 		Game_Draw();
 		break;
@@ -101,6 +111,9 @@ void Finalize( void )
 	{
 		case SCENE_TITLE:
 		Title_Finalize();
+		break;
+		case SCENE_STAGESELECT:
+		StageSelect_Finalize();
 		break;
 		case SCENE_GAME:
 		Game_Finalize();

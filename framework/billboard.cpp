@@ -221,6 +221,9 @@ void Billboard::Draw(void)
 	SetProjectionMatrix(proj);
 
 	ID3D11DeviceContext* context = GetDeviceContext();
+
+	// 床など影を受けるBillboardだけ、ShadowReceiveシェーダーに切り替える。
+	// 通常のBillboardは今まで通りUnlitTextureで描く。
 	SHADERTYPE shaderType = m_ReceiveShadow ? S_SHADOW_RECEIVE : S_UNLIT;
 	context->IASetInputLayout(GetShader(shaderType)->GetVertexLayout());
 	context->VSSetShader(GetShader(shaderType)->GetVertexShader(), NULL, 0);

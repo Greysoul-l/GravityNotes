@@ -59,6 +59,8 @@ static float	bFactor[4] = { 0.0f,0.0f,0.0f,0.0f };
 static ID3D11BlendState* bState[BLENDSTATE_MAX];
 static ID3D11RasterizerState* rState[CULLSTATE_MAX];
 
+// ShadowMapは、ライトから見た「深度だけの画像」。
+// Texture本体、深度書き込み用View、シェーダーで読む用View、読み取り用Samplerを分けて持つ。
 static const UINT SHADOW_MAP_SIZE = 2048;
 static ID3D11Texture2D* g_ShadowMapTexture = NULL;
 static ID3D11DepthStencilView* g_ShadowMapDepthView = NULL;
@@ -317,6 +319,7 @@ void SetShadowMatrix(XMMATRIX LightViewProjection, XMFLOAT4 Param)
 {
 	if (!g_ShadowBuffer) return;
 
+	// HLSL側でmulしやすいように転置してからGPUへ送る。
 	SHADOW_CONSTANT shadow = {};
 	XMMATRIX lightViewProjection = XMMatrixTranspose(LightViewProjection);
 	XMStoreFloat4x4(&shadow.LightViewProjection, lightViewProjection);
@@ -327,13 +330,16 @@ void SetShadowMatrix(XMMATRIX LightViewProjection, XMFLOAT4 Param)
 
 void BeginShadowMap(void)
 {
+	// 同じShadowMapを「読みながら書く」とDirectXで不正になるので、先に読み取りを外す。
 	ID3D11ShaderResourceView* nullSRV = NULL;
 	g_ImmediateContext->PSSetShaderResources(1, 1, &nullSRV);
 
+	// RenderTargetViewを外し、深度だけを書くShadowMap用DepthViewへ切り替える。
 	SetDepthEnable(true);
 	g_ImmediateContext->OMSetRenderTargets(0, NULL, g_ShadowMapDepthView);
 	g_ImmediateContext->ClearDepthStencilView(g_ShadowMapDepthView, D3D11_CLEAR_DEPTH, 1.0f, 0);
 
+	// ShadowMapは画面サイズではなく、専用の固定サイズで描く。
 	D3D11_VIEWPORT vp;
 	vp.TopLeftX = 0.0f;
 	vp.TopLeftY = 0.0f;
@@ -346,8 +352,11 @@ void BeginShadowMap(void)
 
 void EndShadowMap(void)
 {
+	// ShadowMapへの描画を終えたので、通常の画面描画用RenderTargetへ戻す。
 	g_ImmediateContext->OMSetRenderTargets(1, &g_RenderTargetView, g_DepthStencilView);
 	SetDepthEnable(true);
+
+	// 以降のピクセルシェーダーがShadowMapを読めるように、t1/s1へセットする。
 	g_ImmediateContext->PSSetShaderResources(1, 1, &g_ShadowMapShaderView);
 	g_ImmediateContext->PSSetSamplers(1, 1, &g_ShadowMapSampler);
 }
@@ -499,6 +508,7 @@ HRESULT InitRenderer(HINSTANCE hInstance, HWND hWnd, BOOL bWindow)
 	//サンプラーをシェーダーへセット
 	g_ImmediateContext->PSSetSamplers( 0, 1, &samplerState );
 
+	// ShadowMap本体。深度として書き込み、あとでテクスチャとして読むためTYPELESSで作る。
 	D3D11_TEXTURE2D_DESC shadowTextureDesc;
 	ZeroMemory(&shadowTextureDesc, sizeof(shadowTextureDesc));
 	shadowTextureDesc.Width = SHADOW_MAP_SIZE;
@@ -512,12 +522,14 @@ HRESULT InitRenderer(HINSTANCE hInstance, HWND hWnd, BOOL bWindow)
 	shadowTextureDesc.BindFlags = D3D11_BIND_DEPTH_STENCIL | D3D11_BIND_SHADER_RESOURCE;
 	g_D3DDevice->CreateTexture2D(&shadowTextureDesc, NULL, &g_ShadowMapTexture);
 
+	// ShadowMapへ深度を書き込むためのView。
 	D3D11_DEPTH_STENCIL_VIEW_DESC shadowDepthDesc;
 	ZeroMemory(&shadowDepthDesc, sizeof(shadowDepthDesc));
 	shadowDepthDesc.Format = DXGI_FORMAT_D32_FLOAT;
 	shadowDepthDesc.ViewDimension = D3D11_DSV_DIMENSION_TEXTURE2D;
 	g_D3DDevice->CreateDepthStencilView(g_ShadowMapTexture, &shadowDepthDesc, &g_ShadowMapDepthView);
 
+	// ShadowMapをピクセルシェーダーで読むためのView。
 	D3D11_SHADER_RESOURCE_VIEW_DESC shadowResourceDesc;
 	ZeroMemory(&shadowResourceDesc, sizeof(shadowResourceDesc));
 	shadowResourceDesc.Format = DXGI_FORMAT_R32_FLOAT;
@@ -525,6 +537,7 @@ HRESULT InitRenderer(HINSTANCE hInstance, HWND hWnd, BOOL bWindow)
 	shadowResourceDesc.Texture2D.MipLevels = 1;
 	g_D3DDevice->CreateShaderResourceView(g_ShadowMapTexture, &shadowResourceDesc, &g_ShadowMapShaderView);
 
+	// ShadowMapを読むときのサンプラー。範囲外は影なし扱いにしやすいようBorderを白にする。
 	D3D11_SAMPLER_DESC shadowSamplerDesc;
 	ZeroMemory(&shadowSamplerDesc, sizeof(shadowSamplerDesc));
 	shadowSamplerDesc.Filter = D3D11_FILTER_MIN_MAG_MIP_POINT;
@@ -589,6 +602,7 @@ HRESULT InitRenderer(HINSTANCE hInstance, HWND hWnd, BOOL bWindow)
 	g_ImmediateContext->PSSetConstantBuffers(6, 1, &g_ParameterBuffer);
 	SetParameter(XMFLOAT4(1.0f, 0.0f, 0.0f, 0.0f));
 
+	// LightViewProjectionなど、ShadowMap判定に必要な値を入れる定数バッファ。
 	hBufferDesc.ByteWidth = sizeof(SHADOW_CONSTANT);
 	g_D3DDevice->CreateBuffer(&hBufferDesc, NULL, &g_ShadowBuffer);
 	g_ImmediateContext->VSSetConstantBuffers(8, 1, &g_ShadowBuffer);

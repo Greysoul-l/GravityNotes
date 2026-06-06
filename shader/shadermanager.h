@@ -11,8 +11,8 @@ enum SHADERTYPE {
 	S_PHONG,
 	S_RIM_LIGHT,
 	S_OUTLINE,
-	S_SHADOW_MAP,
-	S_SHADOW_RECEIVE,
+	S_SHADOW_MAP,		// ShadowMap作成用。色ではなく深度だけを描く。	
+	S_SHADOW_RECEIVE,	// ShadowMapを読んで、床などに影を反映する。
 	S_MAX,
 };
 

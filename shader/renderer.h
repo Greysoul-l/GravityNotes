@@ -66,6 +66,8 @@ struct LIGHT
 	XMFLOAT4	PointLightParam;
 };
 
+// シャドウマップを読むためにシェーダーへ渡す定数。
+// LightViewProjection は「ライトから見た世界」に変換する行列。
 struct SHADOW_CONSTANT
 {
 	XMFLOAT4X4 LightViewProjection;
@@ -120,8 +122,13 @@ void SetCameraPosition(XMFLOAT3 CameraPosition);
 
 void SetParameter(XMFLOAT4 Parameter);
 
+// ShadowMap用の行列と調整値をGPUへ送る。
 void SetShadowMatrix(XMMATRIX LightViewProjection, XMFLOAT4 Param);
+
+// ここから先の描画を、画面ではなくShadowMapへ書き込む。
 void BeginShadowMap(void);
+
+// ShadowMapへの描画を終えて、通常の画面描画へ戻す。
 void EndShadowMap(void);
 
 

@@ -57,6 +57,8 @@ public:
 	void SetBillboardMode(bool enable) { m_IsBillboardMode = enable; }
 	bool GetBillboardMode(void) const { return m_IsBillboardMode; }
 
+	// trueにすると、このBillboardはShadowMapを読んで影を受ける。
+	// 今は床タイル用に使う。
 	void SetReceiveShadow(bool enable) { m_ReceiveShadow = enable; }
 	bool GetReceiveShadow(void) const { return m_ReceiveShadow; }
 

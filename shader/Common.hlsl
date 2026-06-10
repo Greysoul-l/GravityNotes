@@ -61,6 +61,8 @@ struct LIGHT
 	float4 PointLightParam;
 };
 
+
+
 /*その他の定数バッファ*/
 //ライトオブジェクト
 cbuffer LightBuffer : register(b4)

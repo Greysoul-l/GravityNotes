@@ -8,7 +8,11 @@ SamplerState g_SamplerState : register(s0);
 void main(in PS_IN In, out float4 outDiffuse : SV_Target)
 {
     // 入力されてきたピクセル色をそのまま出力
-    outDiffuse = In.Diffuse;
+ //   outDiffuse = In.Diffuse;
     
-	outDiffuse = g_Texture.Sample(g_SamplerState, In.TexCoord) * In.Diffuse;
+	//outDiffuse = g_Texture.Sample(g_SamplerState, In.TexCoord) * In.Diffuse;
+	outDiffuse = g_Texture.Sample(g_SamplerState, In.TexCoord);
+	outDiffuse *= In.Diffuse;
+
+	clip(outDiffuse.a - 0.1f);
 }

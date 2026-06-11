@@ -9,7 +9,11 @@
 #include "mouse.h"
 #include "sound.h"
 #include "ClickFont.h"
-// test
+#include "MultiLineFontRenderer.h"
+#include "scoresummaryloader.h"
+#include "scene.h"
+#include <cstdio>
+
 using namespace DirectX;
 
 // 1. Ảnh nền phòng/bàn máy hát
@@ -28,6 +32,91 @@ static ClickFont* g_pStageButtons[MAX_STAGES] = { nullptr };
 static int g_SelectedStage = 0;      // Màn chơi đang được chọn
 static float g_VinylRotation = 0.0f; // Góc xoay của đĩa chính
 
+// ①インスタンス、ポインタ用意
+static MultiLineFontRenderer* g_pScoreInfoText = nullptr;
+static std::vector<ScoreSummary> g_ScoreSummaries;
+static int g_SelectedScoreIndex = 0;
+
+static std::string GetSelectedJsonName()
+{
+	if (g_ScoreSummaries.empty())
+	{
+		return "";
+	}
+
+	if (g_SelectedScoreIndex < 0)
+	{
+		g_SelectedScoreIndex = 0;
+	}
+	if (g_SelectedScoreIndex >= static_cast<int>(g_ScoreSummaries.size()))
+	{
+		g_SelectedScoreIndex = static_cast<int>(g_ScoreSummaries.size()) - 1;
+	}
+
+	return g_ScoreSummaries[static_cast<size_t>(g_SelectedScoreIndex)].jsonname;
+}
+
+// 現在選択中の楽曲情報を1曲分だけ整形して表示する
+static void RefreshSelectedScoreText()
+{
+	if (g_pScoreInfoText == nullptr)
+	{
+		return;
+	}
+
+	if (g_ScoreSummaries.empty())
+	{
+		g_pScoreInfoText->SetText("No score json found");
+		return;
+	}
+
+	if (g_SelectedScoreIndex < 0)
+	{
+		g_SelectedScoreIndex = 0;
+	}
+	if (g_SelectedScoreIndex >= static_cast<int>(g_ScoreSummaries.size()))
+	{
+		g_SelectedScoreIndex = static_cast<int>(g_ScoreSummaries.size()) - 1;
+	}
+
+	const ScoreSummary& summary = g_ScoreSummaries[static_cast<size_t>(g_SelectedScoreIndex)];
+
+	char buf[1024] = {};
+	std::snprintf(
+		buf,
+		sizeof(buf),
+		"[%d/%d]\nMusic: %s\n作曲者: %s\n譜面作者: %s\n難易度: %.1f\nBPM: %.1f\nJSON: %s",
+		g_SelectedScoreIndex + 1,
+		static_cast<int>(g_ScoreSummaries.size()),
+		summary.musicname.c_str(),
+		summary.musicauthor.c_str(),
+		summary.scoreauthor.c_str(),
+		summary.difficulty,
+		summary.bpm,
+		summary.jsonname.c_str()
+	);
+	g_pScoreInfoText->SetText(buf);
+}
+
+// 左右入力で選択中インデックスを循環更新し、表示内容を更新する
+static void ChangeSelectedScore(int delta)
+{
+	if (g_ScoreSummaries.empty())
+	{
+		return;
+	}
+
+	const int count = static_cast<int>(g_ScoreSummaries.size());
+	g_SelectedScoreIndex = (g_SelectedScoreIndex + delta) % count;
+	if (g_SelectedScoreIndex < 0)
+	{
+		g_SelectedScoreIndex += count;
+	}
+
+	RefreshSelectedScoreText();
+}
+
+// StageSelectシーンの生成と、譜面概要一覧の再読み込みを行う
 void StageSelect_Initialize(void)
 {
 	// Khởi tạo nền (Độ phân giải 2560 x 1440)
@@ -85,9 +174,29 @@ void StageSelect_Initialize(void)
 		L"asset\\texture\\tonearm.png"
 	);
 
-	UnLockMouse(); // Mở khóa chuột
+	g_pScoreInfoText = new MultiLineFontRenderer(
+		{ SCREEN_WIDTH / 4.0f, SCREEN_HEIGHT / 2 },
+		28.0f,
+		0.0f,
+		{ 1.0f, 1.0f, 1.0f, 1.0f },
+		"loading...",
+		1.35f
+	);
+
+	g_ScoreSummaries = LoadScoreSummaries();
+	const bool loaded = !g_ScoreSummaries.empty();
+	hal::dout << "[StageSelect] score summary reload: "
+		<< (loaded ? "success" : "failed")
+		<< " count=" << g_ScoreSummaries.size()
+		<< std::endl;
+
+	g_SelectedScoreIndex = 0;
+	RefreshSelectedScoreText();
+
+	UnLockMouse();//マウスアンロック
 }
 
+// 入力処理（左右で選曲）と決定クリック時のシーン遷移を行う
 void StageSelect_Update(void)
 {
 	// 1. Cập nhật trạng thái cho toàn bộ các nút bên trái
@@ -117,9 +226,28 @@ void StageSelect_Update(void)
 	// Cập nhật góc quay vào Sprite đĩa chính
 	if (g_pMainVinyl != nullptr) {
 		g_pMainVinyl->SetRotation(g_VinylRotation);
+	//③処理
+	g_pChangeSceneText->Update();
+
+	if (Keyboard_IsKeyDownTrigger(KK_LEFT))
+	{
+		ChangeSelectedScore(-1);
 	}
+
+	if (Keyboard_IsKeyDownTrigger(KK_RIGHT))
+	{
+		ChangeSelectedScore(1);
+	}
+
+	//ClickFontがクリックされた
+	//if (g_pChangeSceneText->IsClick())
+	//{
+	//	SetPlayJson(GetSelectedJsonName());
+	//	SetSceneFade(SCENE_GAME);
+	//}
 }
 
+// StageSelectシーンの描画を行う
 void StageSelect_Draw(void)
 {
 	// ④ Vẽ theo thứ tự từ dưới lên trên
@@ -133,8 +261,11 @@ void StageSelect_Draw(void)
 
 	g_pMainVinyl->Draw(); // Vẽ đĩa xoay chính ở giữa
 	g_pToneArm->Draw();   // Vẽ kim đĩa đè lên trên cùng đĩa chính
+	//④描画
+	g_pScoreInfoText->Draw();
 }
 
+// StageSelectシーンで確保したリソースを解放する
 void StageSelect_Finalize(void)
 {
 	// ⑤ Giải phóng toàn bộ bộ nhớ sạch sẽ để tránh rò rỉ (Memory Leak)
@@ -146,4 +277,7 @@ void StageSelect_Finalize(void)
 		SAFE_DELETE(g_pStageDisks[i]);
 		SAFE_DELETE(g_pStageButtons[i]);
 	}
+
+	SAFE_DELETE(g_pScoreInfoText);
+	g_ScoreSummaries.clear();
 }

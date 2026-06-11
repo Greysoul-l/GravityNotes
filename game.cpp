@@ -12,12 +12,14 @@
 #include "komachi/debug_ui.h"
 #include "sound.h"
 #include "ClickFont.h"
+#include "scene.h"
 
 using namespace DirectX;
 
 // ①インスタンス、ポインタ用意
 static Sprite2D* g_pGameSprite = nullptr;
 static ClickFont* g_pChangeSceneText = nullptr;
+static FontRenderer* g_pSelectedJsonText = nullptr;
 
 void Game_Initialize(void)
 {
@@ -38,6 +40,15 @@ void Game_Initialize(void)
 		{ 1.0f, 1.0f, 1.0f, 1.0f },									//通常色
 		{ 1.0f, 0.8f, 0.2f, 1.0f },									//ホバー色
 		"[game.cpp] リザルトへ"										//テキスト
+	);
+
+	const std::string selectedJson = GetPlayJson();
+	g_pSelectedJsonText = new FontRenderer(
+		{ SCREEN_WIDTH / 4.0f, SCREEN_HEIGHT / 2.0f },
+		28.0f,
+		0.0f,
+		{ 1.0f, 1.0f, 1.0f, 1.0f },
+		"Selected JSON: " + (selectedJson.empty() ? std::string("(none)") : selectedJson)
 	);
 
 	UnLockMouse();//マウスアンロック
@@ -70,6 +81,7 @@ void Game_Draw(void)
 {
 	//④描画
 	g_pGameSprite->Draw();
+	g_pSelectedJsonText->Draw();
 	g_pChangeSceneText->Draw();
 }
 
@@ -77,5 +89,6 @@ void Game_Finalize(void)
 {
 	//⑤解放
 	SAFE_DELETE(g_pGameSprite);
+	SAFE_DELETE(g_pSelectedJsonText);
 	SAFE_DELETE(g_pChangeSceneText);
 }

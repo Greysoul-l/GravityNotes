@@ -10,7 +10,7 @@
 
 enum class ScoreType
 {
-	Enemy,
+	Tap,
 	Obstacle,
 	Gravity,
 	Jump
@@ -33,7 +33,7 @@ inline std::string NormalizeScoreToken(std::string value)
 inline ScoreType ParseScoreType(const std::string& value)
 {
 	const std::string token = NormalizeScoreToken(value);
-	if (token == "enemy") return ScoreType::Enemy;
+	if (token == "tap") return ScoreType::Tap;
 	if (token == "obstacle") return ScoreType::Obstacle;
 	if (token == "gravity") return ScoreType::Gravity;
 	if (token == "jump") return ScoreType::Jump;

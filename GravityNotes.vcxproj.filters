@@ -55,6 +55,12 @@
     <ClCompile Include="framework\debug_ostream.cpp">
       <Filter>フレームワーク\etc</Filter>
     </ClCompile>
+    <ClCompile Include="framework\MultiLineClickFont.cpp">
+      <Filter>フレームワーク\2D</Filter>
+    </ClCompile>
+    <ClCompile Include="framework\MultiLineFontRenderer.cpp">
+      <Filter>フレームワーク\2D</Filter>
+    </ClCompile>
     <ClCompile Include="debugscene\debugscore.cpp">
       <Filter>デバッグ</Filter>
     </ClCompile>
@@ -115,6 +121,7 @@
     <ClCompile Include="debugscene\debugscene.cpp">
       <Filter>デバッグ</Filter>
     </ClCompile>
+    <ClCompile Include="komachi\debug_ui.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="framework\camera.h">
@@ -192,6 +199,12 @@
     <ClInclude Include="framework\debug_ostream.h">
       <Filter>フレームワーク\etc</Filter>
     </ClInclude>
+    <ClInclude Include="framework\MultiLineClickFont.h">
+      <Filter>フレームワーク\2D</Filter>
+    </ClInclude>
+    <ClInclude Include="framework\MultiLineFontRenderer.h">
+      <Filter>フレームワーク\2D</Filter>
+    </ClInclude>
     <ClInclude Include="scoreloader.h">
       <Filter>譜面読み込み</Filter>
     </ClInclude>
@@ -260,6 +273,11 @@
     </ClInclude>
     <ClInclude Include="debugscene\debugscene.h">
       <Filter>デバッグ</Filter>
+    </ClInclude>
+    <ClInclude Include="komachi\debug_params.h" />
+    <ClInclude Include="komachi\debug_ui.h" />
+    <ClInclude Include="scoresummaryloader.h">
+      <Filter>譜面読み込み</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>
@@ -365,6 +383,12 @@
       <Filter>フレームワーク\シェーダー</Filter>
     </FxCompile>
     <FxCompile Include="shader\ShadowReceiveVS.hlsl">
+      <Filter>フレームワーク\シェーダー</Filter>
+    </FxCompile>
+    <FxCompile Include="shader\NormalMapShadowReceivePS.hlsl">
+      <Filter>フレームワーク\シェーダー</Filter>
+    </FxCompile>
+    <FxCompile Include="shader\NormalMapShadowReceiveVS.hlsl">
       <Filter>フレームワーク\シェーダー</Filter>
     </FxCompile>
     <FxCompile Include="shader\shader_vertex_skinning.hlsl">

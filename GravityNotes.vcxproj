@@ -266,6 +266,7 @@
     <ClInclude Include="scene.h" />
     <ClInclude Include="result.h" />
     <ClInclude Include="scoreloader.h" />
+    <ClInclude Include="scoresummaryloader.h" />
     <ClInclude Include="stageselect.h" />
     <ClInclude Include="shader\shadermanager.h" />
     <ClInclude Include="shader\renderer.h" />

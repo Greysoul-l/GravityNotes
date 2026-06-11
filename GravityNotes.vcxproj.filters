@@ -276,6 +276,9 @@
     </ClInclude>
     <ClInclude Include="komachi\debug_params.h" />
     <ClInclude Include="komachi\debug_ui.h" />
+    <ClInclude Include="scoresummaryloader.h">
+      <Filter>譜面読み込み</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <Filter Include="フレームワーク">

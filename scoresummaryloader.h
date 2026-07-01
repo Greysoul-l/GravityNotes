@@ -1,4 +1,4 @@
-#pragma once
+﻿#pragma once
 
 #include <Windows.h>
 #include <algorithm>
@@ -39,6 +39,7 @@ inline ScoreSummary LoadSingleScoreSummary(const std::string& jsonName, const st
 
 	try
 	{
+
 		nlohmann::json jsonData;
 		file >> jsonData;
 
@@ -52,7 +53,6 @@ inline ScoreSummary LoadSingleScoreSummary(const std::string& jsonName, const st
 		summary.bpm = jsonData.value("bpm", 0.0f);
 		summary.thumbnail = jsonData.value("thumbnail", "");
 		summary.music = jsonData.value("music", "");
-		summary.vinylIndex = jsonData.value("vinylIndex", -1);
 	}
 	catch (...)
 	{
@@ -69,6 +69,8 @@ inline std::vector<ScoreSummary> LoadScoreSummaries(const std::string& directory
 	const std::string pattern = directoryPath + "\\*.json";
 	WIN32_FIND_DATAA findData = {};
 	HANDLE findHandle = FindFirstFileA(pattern.c_str(), &findData);
+	int index = 0;
+
 	if (findHandle == INVALID_HANDLE_VALUE)
 	{
 		return summaries;
@@ -85,6 +87,8 @@ inline std::vector<ScoreSummary> LoadScoreSummaries(const std::string& directory
 		{
 			summaries.push_back(summary);
 		}
+
+
 	} while (FindNextFileA(findHandle, &findData) != 0);
 
 	FindClose(findHandle);

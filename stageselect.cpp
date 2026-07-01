@@ -1,4 +1,4 @@
-#include "stageselect.h"
+﻿#include "stageselect.h"
 #include "sprite2d.h"
 #include "texture.h"
 #include "keyboard.h"
@@ -276,15 +276,10 @@ void StageSelect_Initialize(void)
 		<< " Count=" << g_ScoreSummaries.size()
 		<< std::endl;
 
-
-
-	// システムにすべてのJSONファイルリストをロード
-	g_ScoreSummaries = LoadScoreSummaries();
 	g_SelectedStage = 0;
 
 	// ディスク0の最初のBGMを自動的に検索して再生
 	RefreshSelectedScoreText();
-
 	UpdateBgmFromSelection();
 
 	// メカニカルな動作の初期状態パラメータを再設定
@@ -573,3 +568,4 @@ void StageSelect_Finalize(void)
 
 	g_ScoreSummaries.clear();
 }
+//

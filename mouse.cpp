@@ -1,4 +1,4 @@
-﻿//--------------------------------------------------------------------------------------
+//--------------------------------------------------------------------------------------
 // File: mouse.cpp
 //
 // 便利なマウスモジュール
@@ -90,17 +90,25 @@ void Mouse_GetState(Mouse_State* pState)
     }
 
     if (pState->positionMode == MOUSE_POSITION_MODE_RELATIVE) {
+        // 相対モードのときは絶対座標をクリア
+        pState->x = 0;
+        pState->y = 0;
 
         Result = WaitForSingleObjectEx(gRelativeRead, 0, FALSE);
         if (Result == WAIT_FAILED) { return; }
 
         if (Result == WAIT_OBJECT_0) {
-            pState->x = 0;
-            pState->y = 0;
+            pState->dx = 0;
+            pState->dy = 0;
         }
         else {
             SetEvent(gRelativeRead);
         }
+    }
+    else {
+        // 絶対座標モードのときは相対移動量をクリア
+        pState->dx = 0;
+        pState->dy = 0;
     }
 }
 
@@ -143,6 +151,23 @@ bool Mouse_IsVisible(void)
     return (info.flags & CURSOR_SHOWING) != 0;
 }
 
+static void SafeShowCursor(bool show)
+{
+    CURSORINFO info = { sizeof(CURSORINFO), 0, nullptr, {} };
+    if (GetCursorInfo(&info)) {
+        bool isShowing = (info.flags & CURSOR_SHOWING) != 0;
+        if (isShowing == show) {
+            return; // 目的の状態であれば何もしない
+        }
+    }
+
+    if (show) {
+        while (ShowCursor(TRUE) < 0);
+    } else {
+        while (ShowCursor(FALSE) >= 0);
+    }
+}
+
 void Mouse_SetVisible(bool visible)
 {
     // 相対モード中でカーソル表示をリクエストされた場合でも、
@@ -158,7 +183,7 @@ void Mouse_SetVisible(bool visible)
     bool isVisible = (info.flags & CURSOR_SHOWING) != 0;
 
     if (isVisible != visible) {
-        ShowCursor(visible);
+        SafeShowCursor(visible);
     }
 }
 
@@ -187,7 +212,7 @@ void Mouse_ProcessMessage(UINT message, WPARAM wParam, LPARAM lParam)
         point.y = gLastY;
 
         // リモートディスクトップに対応するために移動前にカーソルを表示する
-        ShowCursor(TRUE);
+        SafeShowCursor(true);
 
         if (MapWindowPoints(gWindow, nullptr, &point, 1)) {
             SetCursorPos(point.x, point.y);
@@ -195,6 +220,8 @@ void Mouse_ProcessMessage(UINT message, WPARAM wParam, LPARAM lParam)
 
         gState.x = gLastX;
         gState.y = gLastY;
+        gState.dx = 0;
+        gState.dy = 0;
     }
     break;
 
@@ -204,10 +231,11 @@ void Mouse_ProcessMessage(UINT message, WPARAM wParam, LPARAM lParam)
 
         gMode = MOUSE_POSITION_MODE_RELATIVE;
         gState.x = gState.y = 0;
+        gState.dx = gState.dy = 0;
         gRelativeX = INT32_MAX;
         gRelativeY = INT32_MAX;
 
-        ShowCursor(FALSE);
+        SafeShowCursor(false);
 
         clipToWindow();
     }
@@ -227,7 +255,7 @@ void Mouse_ProcessMessage(UINT message, WPARAM wParam, LPARAM lParam)
             if (gMode == MOUSE_POSITION_MODE_RELATIVE) {
 
                 gState.x = gState.y = 0;
-                ShowCursor(FALSE);
+                SafeShowCursor(false);
                 clipToWindow();
             }
         }
@@ -251,8 +279,8 @@ void Mouse_ProcessMessage(UINT message, WPARAM wParam, LPARAM lParam)
 
                 if (!(raw.data.mouse.usFlags & MOUSE_MOVE_ABSOLUTE)) {
 
-                    gState.x = raw.data.mouse.lLastX;
-                    gState.y = raw.data.mouse.lLastY;
+                    gState.dx = raw.data.mouse.lLastX;
+                    gState.dy = raw.data.mouse.lLastY;
 
                     ResetEvent(gRelativeRead);
                 }
@@ -266,11 +294,11 @@ void Mouse_ProcessMessage(UINT message, WPARAM wParam, LPARAM lParam)
                     int y = (int)((raw.data.mouse.lLastY / 65535.0f) * height);
 
                     if (gRelativeX == INT32_MAX) {
-                        gState.x = gState.y = 0;
+                        gState.dx = gState.dy = 0;
                     }
                     else {
-                        gState.x = x - gRelativeX;
-                        gState.y = y - gRelativeY;
+                        gState.dx = x - gRelativeX;
+                        gState.dy = y - gRelativeY;
                     }
 
                     gRelativeX = x;
@@ -356,6 +384,8 @@ void Mouse_ProcessMessage(UINT message, WPARAM wParam, LPARAM lParam)
 
         gState.x = gLastX = xPos;
         gState.y = gLastY = yPos;
+        gState.dx = 0;
+        gState.dy = 0;
     }
 }
 
@@ -408,7 +438,7 @@ void LockMouse(void)
 	// マウスカーソルを非表示・相対モードに設定
 	Mouse_SetMode(MOUSE_POSITION_MODE_RELATIVE);
 	Mouse_SetVisible(false);
-	ShowCursor(FALSE);
+	SafeShowCursor(false);
 }
 
 void UnLockMouse(void)
@@ -416,6 +446,6 @@ void UnLockMouse(void)
 	// タイトル画面ではマウスカーソルを表示・絶対モードに設定
 	Mouse_SetMode(MOUSE_POSITION_MODE_ABSOLUTE);
 	Mouse_SetVisible(true);
-	ShowCursor(TRUE);
+	SafeShowCursor(true);
 }
 

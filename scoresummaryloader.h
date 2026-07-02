@@ -102,5 +102,10 @@ inline std::vector<ScoreSummary> LoadScoreSummaries(const std::string& directory
 			return a.difficulty > b.difficulty;
 		});
 
+	for (size_t i = 0; i < summaries.size(); ++i)
+	{
+		summaries[i].vinylIndex = static_cast<int>(i);
+	}
+
 	return summaries;
 }

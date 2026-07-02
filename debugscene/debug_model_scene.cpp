@@ -76,6 +76,8 @@ static MODEL* g_pCubeModel = nullptr;
 static bool   g_ShowOriginCubes = false;
 static bool   g_AnimationKeyHeld[10] = {};
 
+static bool isMouseLock = true;
+
 // リロード用フラグ
 static bool g_ReloadRequested = false;
 
@@ -224,6 +226,8 @@ static void ReloadAllModels()
 // ======================================================
 void DebugModelScene_Initialize(void)
 {
+	isMouseLock = true;
+
 	// ライト
 	g_pAmbientLight = new AmbientLight(XMFLOAT4(0.3f, 0.3f, 0.3f, 1.0f));
 	g_pFloorLight = new PointLight(
@@ -297,6 +301,22 @@ void DebugModelScene_Initialize(void)
 // ======================================================
 void DebugModelScene_Update(void)
 {
+
+	// Bキーで原点キューブ表示切り替え
+	if (Keyboard_IsKeyDownTrigger(KK_U))
+	{
+		if (isMouseLock)
+		{
+			UnLockMouse();
+			isMouseLock = false;
+		}
+		else
+		{
+			LockMouse();
+			isMouseLock = true;
+		}
+	}
+
 
 	// Bキーで原点キューブ表示切り替え
 	if (Keyboard_IsKeyDownTrigger(KK_B))
@@ -504,6 +524,9 @@ void DebugModelScene_Draw(void)
 // ======================================================
 void DebugModelScene_Finalize(void)
 {
+	isMouseLock = false;
+	UnLockMouse();
+
 	for (int i = 0; i < (int)g_Entries.size(); i++)
 	{
 		if (g_Entries[i].pModel) { ModelRelease(g_Entries[i].pModel); }

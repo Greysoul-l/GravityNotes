@@ -1,4 +1,4 @@
-﻿//--------------------------------------------------------------------------------------
+//--------------------------------------------------------------------------------------
 // File: mouse.h
 //
 // 便利なマウスモジュール
@@ -37,8 +37,10 @@ typedef struct MouseState_tag
     bool rightButton;
     bool xButton1;
     bool xButton2;
-    int x;
-    int y;
+    int x;   // 絶対座標モード時のウィンドウ内X座標
+    int y;   // 絶対座標モード時のウィンドウ内Y座標
+    int dx;  // 相対移動量X
+    int dy;  // 相対移動量Y
     int scrollWheelValue;
     Mouse_PositionMode positionMode;
 } Mouse_State;

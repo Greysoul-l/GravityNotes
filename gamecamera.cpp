@@ -1,4 +1,4 @@
-﻿#include "camera.h"
+#include "camera.h"
 #include "keyboard.h"
 #include "mouse.h"
 #include "scene.h"
@@ -37,8 +37,8 @@ void GameCamera::Update(Player* player) {
 		Mouse_State mouseState;
 		Mouse_GetState(&mouseState);
 
-		s_Instance->m_yaw += static_cast<float>(mouseState.x) * 0.1f;
-		s_Instance->m_pitch += static_cast<float>(mouseState.y) * 0.1f;
+		s_Instance->m_yaw += static_cast<float>(mouseState.dx) * 0.1f;
+		s_Instance->m_pitch += static_cast<float>(mouseState.dy) * 0.1f;
 
 		if (s_Instance->m_pitch > 89.0f) s_Instance->m_pitch = 89.0f;
 		if (s_Instance->m_pitch < -89.0f) s_Instance->m_pitch = -89.0f;

@@ -128,8 +128,8 @@ void Camera::Update()
 	// 1フレームあたりの入力量を上限でクランプして異常回転を防ぐ
 	{
 		const int MAX_MOUSE_DELTA = 200;
-		int mx = mouseState.x;
-		int my = mouseState.y;
+		int mx = mouseState.dx;
+		int my = mouseState.dy;
 		if (mx >  MAX_MOUSE_DELTA) mx =  MAX_MOUSE_DELTA;
 		if (mx < -MAX_MOUSE_DELTA) mx = -MAX_MOUSE_DELTA;
 		if (my >  MAX_MOUSE_DELTA) my =  MAX_MOUSE_DELTA;

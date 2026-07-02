@@ -1,4 +1,4 @@
-﻿#include "debugcamera.h"
+#include "debugcamera.h"
 #include "sprite2d.h"
 #include "texture.h"
 #include "keyboard.h"
@@ -36,8 +36,8 @@ void DebugCamera_Update(void)
 	Mouse_State mouseState;
 	Mouse_GetState(&mouseState);
 
-	g_DebugCameraYaw += static_cast<float>(mouseState.x) * 0.1f;
-	g_DebugCameraPitch += static_cast<float>(mouseState.y) * 0.1f;
+	g_DebugCameraYaw += static_cast<float>(mouseState.dx) * 0.1f;
+	g_DebugCameraPitch += static_cast<float>(mouseState.dy) * 0.1f;
 
 	if (g_DebugCameraPitch > 89.0f) g_DebugCameraPitch = 89.0f;
 	if (g_DebugCameraPitch < -89.0f) g_DebugCameraPitch = -89.0f;

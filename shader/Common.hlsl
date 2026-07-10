@@ -98,6 +98,8 @@ SamplerState g_ShadowSampler : register(s1);
 // 戻り値は 1.0 が影なし、ShadowParam.y に近いほど影が濃い。
 float CalcShadow(float4 shadowPosition)
 {
+	float shadowVal = 1.0f;
+
     // クリップ空間から、-1～1の投影座標に戻す。
 	float3 proj = shadowPosition.xyz / shadowPosition.w;
 
@@ -107,33 +109,37 @@ float CalcShadow(float4 shadowPosition)
     // ShadowMapの範囲外なら、この場所は影判定できないので影なしにする。
 	if (uv.x < 0.0f || uv.x > 1.0f || uv.y < 0.0f || uv.y > 1.0f || proj.z < 0.0f || proj.z > 1.0f)
 	{
-		return 1.0f;
+		shadowVal = 1.0f;
 	}
-
-	float currentDepth = proj.z - ShadowParam.x;
-
-    // PCF(Percentage Closer Filtering)。
-    // 中心の1点だけで影判定すると境界がギザギザになりやすいので、
-    // 周囲3x3の深度も見て、影あり/なしを平均する。
-	float2 texelSize = ShadowParam.zw;
-
-	float litCount = 0.0f;
-
-    [unroll]
-	for (int y = -1; y <= 1; y++)
+	else
 	{
-        [unroll]
-		for (int x = -1; x <= 1; x++)
-		{
-			float2 sampleUV = uv + float2(x, y) * texelSize;
-			float shadowDepth = g_ShadowMap.Sample(g_ShadowSampler, sampleUV).r;
+		float currentDepth = proj.z - ShadowParam.x;
 
-            // 現在の場所のほうが手前なら明るい。奥なら手前に何かがあるので影。
-			litCount += (currentDepth > shadowDepth) ? 0.0f : 1.0f;
+		// PCF(Percentage Closer Filtering)。
+		// 中心の1点だけで影判定すると境界がギザギザになりやすいので、
+		// 周囲3x3の深度も見て、影あり/なしを平均する。
+		float2 texelSize = ShadowParam.zw;
+
+		float litCount = 0.0f;
+
+		[unroll]
+		for (int y = -1; y <= 1; y++)
+		{
+			[unroll]
+			for (int x = -1; x <= 1; x++)
+			{
+				float2 sampleUV = uv + float2(x, y) * texelSize;
+				float shadowDepth = g_ShadowMap.Sample(g_ShadowSampler, sampleUV).r;
+
+				// 現在の場所のほうが手前なら明るい。奥なら手前に何かがあるので影。
+				litCount += (currentDepth > shadowDepth) ? 0.0f : 1.0f;
+			}
 		}
+
+		// 9点のうち明るい割合を使って、影の境界をなめらかにする。
+		float visibility = litCount / 9.0f;
+		shadowVal = lerp(ShadowParam.y, 1.0f, visibility);
 	}
 
-    // 9点のうち明るい割合を使って、影の境界をなめらかにする。
-	float visibility = litCount / 9.0f;
-	return lerp(ShadowParam.y, 1.0f, visibility);
+	return shadowVal;
 }

@@ -42,6 +42,29 @@ namespace
     }
 }
 
+#include "../scene.h"
+#include <unordered_map>
+#include "debug_ostream.h"
+
+// グローバルなBGMサウンドキャッシュのエントリー
+struct GlobalSoundEntry {
+	SoundData* data = nullptr;
+	int refCount = 0;
+};
+static std::unordered_map<std::wstring, GlobalSoundEntry> g_GlobalSoundMap;
+
+// シーンごとのBGMサウンドキャッシュ
+static std::unordered_map<std::wstring, SoundData*> g_SoundCache[SCENE_MAX];
+
+// Helper to convert wstring path to string for logging
+static std::string SoundPathToString(const wchar_t* wstr)
+{
+	if (!wstr) return "";
+	std::string str;
+	for (int i = 0; wstr[i] != L'\0'; ++i) str += static_cast<char>(wstr[i]);
+	return str;
+}
+
 // グローバル変数
 static IXAudio2* g_pXAudio2 = nullptr;
 static IXAudio2MasteringVoice* g_pMasterVoice = nullptr;
@@ -73,75 +96,148 @@ void UninitSound() {
     CoUninitialize();
 }
 
+// プロトタイプ宣言
+static void DestroySoundData(SoundData* data);
+
 // MP3読み込み
 SoundData* LoadMP3(const wchar_t* filename) {
-    SoundData* data = new SoundData();
-    data->isBGM = IsBGMPath(filename);
+	std::wstring path = filename;
+	std::string pathStr = SoundPathToString(filename);
+	bool isBGM = IsBGMPath(filename);
 
-    // SourceReader作成
-    HRESULT hr = MFCreateSourceReaderFromURL(filename, NULL, &data->pReader);
-    if (FAILED(hr)) {
-        delete data;
-        return nullptr;
-    }
+	if (isBGM)
+	{
+		SCENE currentScene = GetScene();
+		if (currentScene >= 0 && currentScene < SCENE_MAX)
+		{
+			auto globIt = g_GlobalSoundMap.find(path);
+			if (globIt != g_GlobalSoundMap.end())
+			{
+				SoundData* cachedData = globIt->second.data;
+				
+				auto sceneIt = g_SoundCache[currentScene].find(path);
+				if (sceneIt == g_SoundCache[currentScene].end())
+				{
+					g_SoundCache[currentScene][path] = cachedData;
+					globIt->second.refCount++;
+					hal::dout << "[Sound Cache] SCENE " << currentScene << " BGM HIT (New scene ref): " << pathStr << " | refCount: " << globIt->second.refCount << std::endl;
+				}
+				else
+				{
+					hal::dout << "[Sound Cache] SCENE " << currentScene << " BGM HIT (Already ref): " << pathStr << " | refCount: " << globIt->second.refCount << std::endl;
+				}
+				return cachedData;
+			}
+		}
+	}
 
-    // オーディオストリームのみ選択
-    data->pReader->SetStreamSelection((DWORD)MF_SOURCE_READER_ALL_STREAMS, FALSE);
-    data->pReader->SetStreamSelection((DWORD)MF_SOURCE_READER_FIRST_AUDIO_STREAM, TRUE);
+	SoundData* data = new SoundData();
+	data->isBGM = isBGM;
+	data->path = path;
 
-    // PCM形式に設定
-    IMFMediaType* pPartialType = nullptr;
-    MFCreateMediaType(&pPartialType);
-    pPartialType->SetGUID(MF_MT_MAJOR_TYPE, MFMediaType_Audio);
-    pPartialType->SetGUID(MF_MT_SUBTYPE, MFAudioFormat_PCM);
-    data->pReader->SetCurrentMediaType((DWORD)MF_SOURCE_READER_FIRST_AUDIO_STREAM, NULL, pPartialType);
-    SafeRelease(&pPartialType);
+	// SourceReader作成
+	HRESULT hr = MFCreateSourceReaderFromURL(filename, NULL, &data->pReader);
+	if (FAILED(hr)) {
+		delete data;
+		return nullptr;
+	}
 
-    // WAVEFORMAT取得
-    IMFMediaType* pType = nullptr;
-    data->pReader->GetCurrentMediaType((DWORD)MF_SOURCE_READER_FIRST_AUDIO_STREAM, &pType);
-    UINT32 wfxSize = 0;
-    MFCreateWaveFormatExFromMFMediaType(pType, &data->pWfx, &wfxSize);
-    SafeRelease(&pType);
+	// オーディオストリームのみ選択
+	hr = data->pReader->SetStreamSelection((DWORD)MF_SOURCE_READER_ALL_STREAMS, FALSE);
+	if (SUCCEEDED(hr)) {
+		hr = data->pReader->SetStreamSelection((DWORD)MF_SOURCE_READER_FIRST_AUDIO_STREAM, TRUE);
+	}
+	if (FAILED(hr)) {
+		DestroySoundData(data);
+		return nullptr;
+	}
 
-    // 全サンプル読み込み
-    std::vector<BYTE> audioData;
-    while (true) {
-        DWORD streamFlags = 0;
-        IMFSample* pSample = nullptr;
-        hr = data->pReader->ReadSample(
-            (DWORD)MF_SOURCE_READER_FIRST_AUDIO_STREAM,
-            0, NULL, &streamFlags, NULL, &pSample);
+	// PCM形式に設定
+	IMFMediaType* pPartialType = nullptr;
+	hr = MFCreateMediaType(&pPartialType);
+	if (FAILED(hr)) {
+		DestroySoundData(data);
+		return nullptr;
+	}
+	pPartialType->SetGUID(MF_MT_MAJOR_TYPE, MFMediaType_Audio);
+	pPartialType->SetGUID(MF_MT_SUBTYPE, MFAudioFormat_PCM);
+	hr = data->pReader->SetCurrentMediaType((DWORD)MF_SOURCE_READER_FIRST_AUDIO_STREAM, NULL, pPartialType);
+	SafeRelease(&pPartialType);
+	if (FAILED(hr)) {
+		DestroySoundData(data);
+		return nullptr;
+	}
 
-        if (FAILED(hr) || (streamFlags & MF_SOURCE_READERF_ENDOFSTREAM)) {
-            if (pSample) pSample->Release();
-            break;
-        }
+	// WAVEFORMAT取得
+	IMFMediaType* pType = nullptr;
+	hr = data->pReader->GetCurrentMediaType((DWORD)MF_SOURCE_READER_FIRST_AUDIO_STREAM, &pType);
+	if (FAILED(hr) || !pType) {
+		DestroySoundData(data);
+		return nullptr;
+	}
+	UINT32 wfxSize = 0;
+	hr = MFCreateWaveFormatExFromMFMediaType(pType, &data->pWfx, &wfxSize);
+	SafeRelease(&pType);
+	if (FAILED(hr) || !data->pWfx) {
+		DestroySoundData(data);
+		return nullptr;
+	}
 
-        if (pSample) {
-            IMFMediaBuffer* pBuffer = nullptr;
-            pSample->ConvertToContiguousBuffer(&pBuffer);
+	// 全サンプル読み込み
+	std::vector<BYTE> audioData;
+	while (true) {
+		DWORD streamFlags = 0;
+		IMFSample* pSample = nullptr;
+		hr = data->pReader->ReadSample(
+			(DWORD)MF_SOURCE_READER_FIRST_AUDIO_STREAM,
+			0, NULL, &streamFlags, NULL, &pSample);
 
-            BYTE* pAudioData = nullptr;
-            DWORD cbBuffer = 0;
-            pBuffer->Lock(&pAudioData, NULL, &cbBuffer);
-            audioData.insert(audioData.end(), pAudioData, pAudioData + cbBuffer);
-            pBuffer->Unlock();
+		if (FAILED(hr) || (streamFlags & MF_SOURCE_READERF_ENDOFSTREAM)) {
+			if (pSample) pSample->Release();
+			break;
+		}
 
-            SafeRelease(&pBuffer);
-            pSample->Release();
-        }
-    }
+		if (pSample) {
+			IMFMediaBuffer* pBuffer = nullptr;
+			hr = pSample->ConvertToContiguousBuffer(&pBuffer);
+			if (SUCCEEDED(hr) && pBuffer) {
+				BYTE* pAudioData = nullptr;
+				DWORD cbBuffer = 0;
+				hr = pBuffer->Lock(&pAudioData, NULL, &cbBuffer);
+				if (SUCCEEDED(hr) && pAudioData) {
+					audioData.insert(audioData.end(), pAudioData, pAudioData + cbBuffer);
+					pBuffer->Unlock();
+				}
+				SafeRelease(&pBuffer);
+			}
+			pSample->Release();
+		}
+	}
 
-    // バッファコピー
-    data->bufferSize = (UINT32)audioData.size();
-    data->pBuffer = new BYTE[data->bufferSize];
-    memcpy(data->pBuffer, audioData.data(), data->bufferSize);
+	// バッファコピー
+	data->bufferSize = (UINT32)audioData.size();
+	data->pBuffer = new BYTE[data->bufferSize];
+	memcpy(data->pBuffer, audioData.data(), data->bufferSize);
 
-    // SourceVoice作成
-    g_pXAudio2->CreateSourceVoice(&data->pSourceVoice, data->pWfx);
+	// SourceVoice作成
+	hr = g_pXAudio2->CreateSourceVoice(&data->pSourceVoice, data->pWfx);
+	if (FAILED(hr)) {
+		DestroySoundData(data);
+		return nullptr;
+	}
 
-    return data;
+	if (isBGM)
+	{
+		SCENE currentScene = GetScene();
+		if (currentScene >= 0 && currentScene < SCENE_MAX)
+		{
+			g_GlobalSoundMap[path] = { data, 1 };
+			g_SoundCache[currentScene][path] = data;
+			hal::dout << "[Sound Cache] SCENE " << currentScene << " BGM MISS (Loaded & Registered): " << pathStr << " | refCount: 1" << std::endl;
+		}
+	}
+
+	return data;
 }
 
 // MP3読み込み (string版)
@@ -158,22 +254,117 @@ SoundData* LoadMP3(const std::string& filename) {
     return data;
 }
 
+// 実際のサウンドデータの破棄を行うヘルパー関数
+static void DestroySoundData(SoundData* data) {
+	if (!data) return;
+	if (data->pSourceVoice) {
+		data->pSourceVoice->Stop();
+		data->pSourceVoice->DestroyVoice();
+	}
+	SafeRelease(&data->pReader);
+	if (data->pWfx) {
+		CoTaskMemFree(data->pWfx);
+	}
+	if (data->pBuffer) {
+		delete[] data->pBuffer;
+	}
+	delete data;
+}
+
 // サウンド解放
 void UnloadSound(SoundData* data) {
-    if (!data) return;
+	if (!data) return;
 
-    if (data->pSourceVoice) {
-        data->pSourceVoice->Stop();
-        data->pSourceVoice->DestroyVoice();
-    }
-    SafeRelease(&data->pReader);
-    if (data->pWfx) {
-        CoTaskMemFree(data->pWfx);
-    }
-    if (data->pBuffer) {
-        delete[] data->pBuffer;
-    }
-    delete data;
+	if (data->isBGM)
+	{
+		std::wstring path = data->path;
+		std::string pathStr = SoundPathToString(path.c_str());
+		SCENE currentScene = GetScene();
+
+		hal::dout << "[Sound Cache] UnloadSound called for BGM: " << pathStr << std::endl;
+
+		if (data->pSourceVoice) {
+			data->pSourceVoice->Stop();
+			data->pSourceVoice->FlushSourceBuffers();
+		}
+
+		if (currentScene >= 0 && currentScene < SCENE_MAX)
+		{
+			auto sceneIt = g_SoundCache[currentScene].find(path);
+			if (sceneIt != g_SoundCache[currentScene].end())
+			{
+				g_SoundCache[currentScene].erase(sceneIt);
+
+				auto globIt = g_GlobalSoundMap.find(path);
+				if (globIt != g_GlobalSoundMap.end())
+				{
+					globIt->second.refCount--;
+					hal::dout << "[Sound Cache] DecRef BGM via UnloadSound: " << pathStr << " | Remaining refCount: " << globIt->second.refCount << std::endl;
+
+					if (globIt->second.refCount <= 0)
+					{
+						hal::dout << "[Sound Cache] Destroying BGM via UnloadSound: " << pathStr << std::endl;
+						DestroySoundData(globIt->second.data);
+						g_GlobalSoundMap.erase(globIt);
+					}
+				}
+			}
+		}
+		return;
+	}
+
+	DestroySoundData(data);
+}
+
+void ReleaseSoundsForScene(SCENE scene) {
+	if (scene < 0 || scene >= SCENE_MAX) return;
+
+	hal::dout << "[Sound Cache] --- Releasing Scene " << scene << " Sounds ---" << std::endl;
+
+	for (auto& pair : g_SoundCache[scene]) {
+		std::wstring path = pair.first;
+		std::string pathStr = SoundPathToString(path.c_str());
+
+		auto globIt = g_GlobalSoundMap.find(path);
+		if (globIt != g_GlobalSoundMap.end()) {
+			globIt->second.refCount--;
+			hal::dout << "  DecRef BGM: " << pathStr << " | Remaining refCount: " << globIt->second.refCount << std::endl;
+			
+			if (globIt->second.refCount <= 0) {
+				hal::dout << "  Destroying BGM: " << pathStr << std::endl;
+				DestroySoundData(globIt->second.data);
+				g_GlobalSoundMap.erase(globIt);
+			}
+		}
+	}
+	g_SoundCache[scene].clear();
+}
+
+void ReleaseAllSounds() {
+	hal::dout << "[Sound Cache] --- Releasing All Sounds (Shutdown) ---" << std::endl;
+	for (int i = 0; i < SCENE_MAX; ++i) {
+		ReleaseSoundsForScene(static_cast<SCENE>(i));
+	}
+
+	// 安全のため、残っているグローバル BGM があれば強制解放
+	for (auto& pair : g_GlobalSoundMap) {
+		if (pair.second.data) {
+			hal::dout << "[Sound Cache] Force Destroying leftover BGM: " << SoundPathToString(pair.first.c_str()) << std::endl;
+			DestroySoundData(pair.second.data);
+		}
+	}
+	g_GlobalSoundMap.clear();
+}
+
+void UpdateSoundCache() {
+	SCENE currentScene = GetScene();
+	static SCENE prevScene = SCENE_NONE;
+	if (currentScene != prevScene) {
+		if (prevScene >= 0 && prevScene < SCENE_MAX) {
+			ReleaseSoundsForScene(prevScene);
+		}
+		prevScene = currentScene;
+	}
 }
 
 // 再生

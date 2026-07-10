@@ -58,7 +58,6 @@ public:
 	~Sprite2D()
 	{
 		if (m_Texture) {
-			m_Texture->Release();
 			m_Texture = nullptr;
 		}
 	}
@@ -115,7 +114,6 @@ public:
 	~SplitSprite()
 	{
 		if (m_Texture) {
-			m_Texture->Release();
 			m_Texture = nullptr;
 		}
 	}

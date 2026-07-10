@@ -16,6 +16,7 @@
 #include <io.h>
 #include <cstddef>
 #include <cstring> // memcpy
+#include <cctype>
 #include <windows.h> // GetFileAttributesA
 using namespace DirectX;
 
@@ -65,10 +66,8 @@ static std::string ResolveTexturePath(const char* modelPath, const std::string& 
 	return texturePath;
 }
 
-static ID3D11ShaderResourceView* CreateFlatNormalTexture()
+static ID3D11ShaderResourceView* CreateSolidTexture(unsigned int pixel)
 {
-	const unsigned int pixel = 0xFFFF8080; // RGBA = (0.5, 0.5, 1.0, 1.0)
-
 	D3D11_TEXTURE2D_DESC desc = {};
 	desc.Width = 1;
 	desc.Height = 1;
@@ -98,6 +97,11 @@ static ID3D11ShaderResourceView* CreateFlatNormalTexture()
 
 	texture->Release();
 	return srv;
+}
+
+static ID3D11ShaderResourceView* CreateFlatNormalTexture()
+{
+	return CreateSolidTexture(0xFFFF8080); // RGBA = (0.5, 0.5, 1.0, 1.0)
 }
 
 static ID3D11ShaderResourceView* FindCachedTexture(MODEL* model, const std::string& texturePath)
@@ -147,6 +151,55 @@ static ID3D11ShaderResourceView* LoadNormalTexture(MODEL* model, const char* mod
 		model->Texture[texturePath] = texture;
 	}
 	return texture;
+}
+
+static bool UsesKnightPbrTextures(const char* modelPath)
+{
+	std::string path = modelPath ? modelPath : "";
+	std::replace(path.begin(), path.end(), '\\', '/');
+	std::transform(path.begin(), path.end(), path.begin(), [](unsigned char c) { return (char)std::tolower(c); });
+	return path.find("knight_02.fbx") != std::string::npos
+		|| path.find("knight_run.fbx") != std::string::npos;
+}
+
+static bool IsFieldAllNormalModel(const char* modelPath)
+{
+	std::string path = modelPath ? modelPath : "";
+	std::replace(path.begin(), path.end(), '\\', '/');
+	std::transform(path.begin(), path.end(), path.begin(), [](unsigned char c) { return (char)std::tolower(c); });
+	return path.find("field_allnormal.fbx") != std::string::npos;
+}
+
+static ID3D11ShaderResourceView* LoadCachedLinearTexture(MODEL* model, const std::string& cacheKey, const wchar_t* filePath)
+{
+	auto it = model->Texture.find(cacheKey);
+	if (it != model->Texture.end())
+	{
+		return it->second;
+	}
+
+	ID3D11ShaderResourceView* texture = LoadTextureLinear(filePath);
+	if (texture)
+	{
+		model->Texture[cacheKey] = texture;
+	}
+	return texture;
+}
+
+static bool HasMaterialNamePart(const MODEL* model, unsigned int meshIndex, const char* namePart)
+{
+	if (!model || !model->AiScene || meshIndex >= model->AiScene->mNumMeshes) return false;
+
+	const aiMesh* mesh = model->AiScene->mMeshes[meshIndex];
+	if (!mesh || mesh->mMaterialIndex >= model->AiScene->mNumMaterials) return false;
+
+	aiString materialName;
+	if (AI_SUCCESS != model->AiScene->mMaterials[mesh->mMaterialIndex]->Get(AI_MATKEY_NAME, materialName))
+	{
+		return false;
+	}
+
+	return std::string(materialName.C_Str()).find(namePart) != std::string::npos;
 }
 
 static XMMATRIX QuatToMatrixForNodeAnimation(const XMFLOAT4& q)
@@ -267,6 +320,13 @@ static void RenderAnimatedNodeRecursive(
 		GetDeviceContext()->PSSetShaderResources(0, 1, &textureToSet);
 		ID3D11ShaderResourceView* normalTextureToSet = model->MeshMaterials[meshIndex].normalTextureView;
 		GetDeviceContext()->PSSetShaderResources(2, 1, &normalTextureToSet);
+		// PBR/Emissive 用の追加テクスチャスロット。
+		ID3D11ShaderResourceView* metallicTextureToSet = model->MeshMaterials[meshIndex].metallicTextureView;
+		GetDeviceContext()->PSSetShaderResources(3, 1, &metallicTextureToSet);
+		ID3D11ShaderResourceView* roughnessTextureToSet = model->MeshMaterials[meshIndex].roughnessTextureView;
+		GetDeviceContext()->PSSetShaderResources(4, 1, &roughnessTextureToSet);
+		ID3D11ShaderResourceView* emissiveTextureToSet = model->MeshMaterials[meshIndex].emissiveTextureView;
+		GetDeviceContext()->PSSetShaderResources(5, 1, &emissiveTextureToSet);
 
 		UINT stride = sizeof(Vertex3D);
 		UINT offset = 0;
@@ -455,6 +515,13 @@ void RenderNode(MODEL* model, aiNode* node, XMMATRIX parentTransform, const XMFL
 		GetDeviceContext()->PSSetShaderResources(0, 1, &textureToSet);
 		ID3D11ShaderResourceView* normalTextureToSet = model->MeshMaterials[meshIndex].normalTextureView;
 		GetDeviceContext()->PSSetShaderResources(2, 1, &normalTextureToSet);
+		// PBR/Emissive 用の追加テクスチャスロット。
+		ID3D11ShaderResourceView* metallicTextureToSet = model->MeshMaterials[meshIndex].metallicTextureView;
+		GetDeviceContext()->PSSetShaderResources(3, 1, &metallicTextureToSet);
+		ID3D11ShaderResourceView* roughnessTextureToSet = model->MeshMaterials[meshIndex].roughnessTextureView;
+		GetDeviceContext()->PSSetShaderResources(4, 1, &roughnessTextureToSet);
+		ID3D11ShaderResourceView* emissiveTextureToSet = model->MeshMaterials[meshIndex].emissiveTextureView;
+		GetDeviceContext()->PSSetShaderResources(5, 1, &emissiveTextureToSet);
 
 
 		// 頂点バッファ設定
@@ -547,6 +614,13 @@ void RenderNodeAnimation(MODEL* model, aiNode* node, XMMATRIX parentTransform, c
 		GetDeviceContext()->PSSetShaderResources(0, 1, &textureToSet);
 		ID3D11ShaderResourceView* normalTextureToSet = model->MeshMaterials[meshIndex].normalTextureView;
 		GetDeviceContext()->PSSetShaderResources(2, 1, &normalTextureToSet);
+		// PBR/Emissive 用の追加テクスチャスロット。
+		ID3D11ShaderResourceView* metallicTextureToSet = model->MeshMaterials[meshIndex].metallicTextureView;
+		GetDeviceContext()->PSSetShaderResources(3, 1, &metallicTextureToSet);
+		ID3D11ShaderResourceView* roughnessTextureToSet = model->MeshMaterials[meshIndex].roughnessTextureView;
+		GetDeviceContext()->PSSetShaderResources(4, 1, &roughnessTextureToSet);
+		ID3D11ShaderResourceView* emissiveTextureToSet = model->MeshMaterials[meshIndex].emissiveTextureView;
+		GetDeviceContext()->PSSetShaderResources(5, 1, &emissiveTextureToSet);
 
 		// 頂点バッファ設定
 		UINT stride = sizeof(Vertex3D);
@@ -1135,6 +1209,7 @@ MODEL* ModelLoad(const char* FileName)
 	{
 	}
 	model->FlatNormalTexture = CreateFlatNormalTexture();
+	model->BlackTexture = CreateSolidTexture(0xFF000000);
 
 	// メッシュごとのテクスチャをプリキャッシュ
 	for (unsigned int m = 0; m < model->AiScene->mNumMeshes; m++)
@@ -1199,6 +1274,34 @@ MODEL* ModelLoad(const char* FileName)
 		{
 			model->MeshMaterials[m].normalTextureView = model->FlatNormalTexture;
 		}
+
+		// Knight 系モデルだけ専用の Metallic/Roughness テクスチャを使う。
+		if (UsesKnightPbrTextures(FileName))
+		{
+			ID3D11ShaderResourceView* metallicTexture = LoadCachedLinearTexture(
+				model, "KnightModel_Metallic", L"asset\\texture\\KnightModel_Metallic.png");
+			ID3D11ShaderResourceView* roughnessTexture = LoadCachedLinearTexture(
+				model, "KnightModel_Roughness", L"asset\\texture\\KnightModel_Roughness.png");
+			model->MeshMaterials[m].metallicTextureView = metallicTexture ? metallicTexture : model->BlackTexture;
+			model->MeshMaterials[m].roughnessTextureView = roughnessTexture ? roughnessTexture : model->WhiteTexture;
+		}
+		else
+		{
+			model->MeshMaterials[m].metallicTextureView = model->BlackTexture;
+			model->MeshMaterials[m].roughnessTextureView = model->WhiteTexture;
+		}
+
+		// field_allnormal は壁マテリアル(kabee)だけ Emissive を有効にする。
+		if (IsFieldAllNormalModel(FileName) && HasMaterialNamePart(model, m, "kabee"))
+		{
+			ID3D11ShaderResourceView* emissiveTexture = LoadCachedLinearTexture(
+				model, "Wall_EmissiveColor", L"asset\\texture\\Wall_EmissiveColor.png");
+			model->MeshMaterials[m].emissiveTextureView = emissiveTexture ? emissiveTexture : model->BlackTexture;
+		}
+		else
+		{
+			model->MeshMaterials[m].emissiveTextureView = model->BlackTexture;
+		}
 	}
 
 	// アニメーションチャンネルのマッピングを作成
@@ -1251,9 +1354,11 @@ void ModelRelease(MODEL* model)
 	}
 
 	if (model->WhiteTexture)
-		model->WhiteTexture->Release();
+		model->WhiteTexture = nullptr;
 	if (model->FlatNormalTexture)
 		model->FlatNormalTexture->Release();
+	if (model->BlackTexture)
+		model->BlackTexture->Release();
 
 	if (model->AiScene)
 		aiReleaseImport(model->AiScene);
@@ -1442,6 +1547,13 @@ void ModelAnimationDraw(MODEL* model, XMFLOAT3 pos, XMFLOAT3 rot, XMFLOAT3 scale
 		context->PSSetShaderResources(0, 1, &pSRV);
 		ID3D11ShaderResourceView* pNormalSRV = model->MeshMaterials[m].normalTextureView;
 		context->PSSetShaderResources(2, 1, &pNormalSRV);
+		// PBR/Emissive 用の追加テクスチャスロット。
+		ID3D11ShaderResourceView* pMetallicSRV = model->MeshMaterials[m].metallicTextureView;
+		context->PSSetShaderResources(3, 1, &pMetallicSRV);
+		ID3D11ShaderResourceView* pRoughnessSRV = model->MeshMaterials[m].roughnessTextureView;
+		context->PSSetShaderResources(4, 1, &pRoughnessSRV);
+		ID3D11ShaderResourceView* pEmissiveSRV = model->MeshMaterials[m].emissiveTextureView;
+		context->PSSetShaderResources(5, 1, &pEmissiveSRV);
 
 		UINT stride = sizeof(Vertex3D);
 		UINT offset = 0;

@@ -6,6 +6,14 @@ using namespace DirectX;
 
 
 
+struct BILLBOARD_VERTEX
+{
+	XMFLOAT3 pos;
+	XMFLOAT3 normal;
+	XMFLOAT4 color;
+	XMFLOAT2 tex;
+};
+
 class Billboard
 {
 public:
@@ -65,7 +73,7 @@ public:
 	void SetReceiveShadow(bool enable) { m_ReceiveShadow = enable; }
 	bool GetReceiveShadow(void) const { return m_ReceiveShadow; }
 
-private:
+protected:
 	ID3D11Buffer* m_VertexBuffer;
 	ID3D11ShaderResourceView* m_Texture;
 	ID3D11ShaderResourceView* m_NormalTexture;

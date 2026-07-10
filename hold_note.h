@@ -1,4 +1,4 @@
-#pragma once
+﻿#pragma once
 #include "enemy_note.h"
 #include <vector>
 

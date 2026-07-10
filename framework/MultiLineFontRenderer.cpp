@@ -1,4 +1,4 @@
-#include "MultiLineFontRenderer.h"
+﻿#include "MultiLineFontRenderer.h"
 
 #include <algorithm>
 

@@ -45,6 +45,9 @@ struct MeshMaterial
 	bool hasNormalTexture = false;
 	std::string normalTexturePath;
 	ID3D11ShaderResourceView* normalTextureView = nullptr;
+	ID3D11ShaderResourceView* metallicTextureView = nullptr;
+	ID3D11ShaderResourceView* roughnessTextureView = nullptr;
+	ID3D11ShaderResourceView* emissiveTextureView = nullptr;
 	bool isFaceMesh = false;  // 顔テクスチャ差し替え対象かどうか
 };
 
@@ -79,6 +82,7 @@ struct MODEL
 
 	// 白テクスチャ（テクスチャ無しメッシュ用）
 	ID3D11ShaderResourceView* WhiteTexture;
+	ID3D11ShaderResourceView* BlackTexture = nullptr;
 
 	// ノード名からアニメーションチャンネルインデックスへのマッピング
 	std::unordered_map<std::string, int> NodeToAnimIndex;

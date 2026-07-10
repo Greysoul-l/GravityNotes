@@ -1,4 +1,4 @@
-#pragma once
+﻿#pragma once
 
 // Draw() の末尾（Present より前）で呼ぶ
 // F1 キーでウィンドウの表示/非表示をトグル

@@ -2,6 +2,7 @@
 
 Texture2D g_Texture : register(t0);
 Texture2D g_NormalMap : register(t2);
+Texture2D g_EmissiveMap : register(t5);
 SamplerState g_SamplerState : register(s0);
 
 float3 CalcNormalMapWorldNormal(PS_IN In)
@@ -64,11 +65,13 @@ void main(in PS_IN In, out float4 outDiffuse : SV_Target)
 
     // テクスチャサンプリング
     float4 texColor = g_Texture.Sample(g_SamplerState, In.TexCoord);
+	// 壁などの自己発光色をライティング結果に足す。
+	float3 emissive = g_EmissiveMap.Sample(g_SamplerState, In.TexCoord).rgb;
 	float3 baseColor = texColor.rgb * In.Diffuse.rgb;
 	float3 ambient = saturate(Light.Ambient.rgb);
 	float3 diffuse = baseColor * light * Light.Diffuse.rgb;
 
     // 最終出力 (ランバート + スペキュラー)
-	outDiffuse.rgb = saturate(baseColor * ambient + diffuse + specular * Light.Diffuse.rgb);
+	outDiffuse.rgb = saturate(baseColor * ambient + diffuse + specular * Light.Diffuse.rgb + emissive);
     outDiffuse.a = texColor.a * In.Diffuse.a;
 }

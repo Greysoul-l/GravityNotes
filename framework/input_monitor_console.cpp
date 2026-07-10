@@ -44,7 +44,7 @@ void InputMonitorConsole_Initialize(void)
 	SetConsoleTitle(L"GravityNotes Input Monitor");
 
 	printf("[Input Monitor] XInput priority + RawInput/DirectInput fallback\n");
-	printf("slot mask backend      A B X Y Start Back LT RT LS(x,y) RS(x,y)\n");
+	printf("slot mask backend    A B X Y Start  Back  LT   RT      LS(x,y)      RS(x,y)\n");
 	g_InputConsoleEnabled = true;
 #endif
 }

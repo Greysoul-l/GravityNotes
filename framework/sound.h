@@ -21,6 +21,7 @@ struct SoundData {
     UINT32 bufferSize = 0;
     bool loop = false;
     bool isBGM = false;
+    std::wstring path;
 };
 
 // 初期化・終了
@@ -41,3 +42,8 @@ double GetPlaybackPositionSec(const SoundData* data);
 
 //音量
 void SetMasterVolume(float volume);
+
+#include "../scene.h"
+void ReleaseSoundsForScene(SCENE scene);
+void ReleaseAllSounds();
+void UpdateSoundCache();

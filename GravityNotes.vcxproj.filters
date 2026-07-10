@@ -10,6 +10,9 @@
     <ClCompile Include="framework\billboard.cpp">
       <Filter>フレームワーク\3D</Filter>
     </ClCompile>
+    <ClCompile Include="framework\split_bilboard.cpp">
+      <Filter>フレームワーク\3D</Filter>
+    </ClCompile>
     <ClCompile Include="framework\ClickFont.cpp">
       <Filter>フレームワーク\2D</Filter>
     </ClCompile>
@@ -103,7 +106,7 @@
     <ClCompile Include="scene.cpp">
       <Filter>フレームワーク\etc</Filter>
     </ClCompile>
-    <ClCompile Include="mouse.cpp">
+    <ClCompile Include="framework\mouse.cpp">
       <Filter>フレームワーク\input</Filter>
     </ClCompile>
     <ClCompile Include="framework\input_manager.cpp">
@@ -145,13 +148,22 @@
     <ClCompile Include="status_manager.cpp">
       <Filter>SCENE_GAME\cpp</Filter>
     </ClCompile>
-    <ClCompile Include="debugscene\debugrigplayer.cpp">
-      <Filter>デバッグ</Filter>
+    <ClCompile Include="game_ui.cpp">
+      <Filter>SCENE_GAME\cpp</Filter>
+    </ClCompile>
+    <ClCompile Include="hold_note.cpp">
+      <Filter>SCENE_GAME\cpp</Filter>
+    </ClCompile>
+    <ClCompile Include="rope_hold_note.cpp">
+      <Filter>SCENE_GAME\cpp</Filter>
     </ClCompile>
     <ClCompile Include="debug_ui.cpp">
       <Filter>SCENE_GAME</Filter>
     </ClCompile>
-    <ClCompile Include="hold_note.cpp">
+    <ClCompile Include="debugscene\debugrigplayer.cpp">
+      <Filter>デバッグ</Filter>
+    </ClCompile>
+    <ClCompile Include="rainbow_note.cpp">
       <Filter>SCENE_GAME\cpp</Filter>
     </ClCompile>
   </ItemGroup>
@@ -163,6 +175,9 @@
       <Filter>フレームワーク\3D</Filter>
     </ClInclude>
     <ClInclude Include="framework\billboard.h">
+      <Filter>フレームワーク\3D</Filter>
+    </ClInclude>
+    <ClInclude Include="framework\split_bilboard.h">
       <Filter>フレームワーク\3D</Filter>
     </ClInclude>
     <ClInclude Include="framework\ClickFont.h">
@@ -288,7 +303,7 @@
     <ClInclude Include="scene.h">
       <Filter>フレームワーク\etc</Filter>
     </ClInclude>
-    <ClInclude Include="mouse.h">
+    <ClInclude Include="framework\mouse.h">
       <Filter>フレームワーク\input</Filter>
     </ClInclude>
     <ClInclude Include="framework\input_monitor_console.h">
@@ -333,8 +348,14 @@
     <ClInclude Include="status_manager.h">
       <Filter>SCENE_GAME\h</Filter>
     </ClInclude>
-    <ClInclude Include="debugscene\debugrigplayer.h">
-      <Filter>デバッグ</Filter>
+    <ClInclude Include="game_ui.h">
+      <Filter>SCENE_GAME\h</Filter>
+    </ClInclude>
+    <ClInclude Include="hold_note.h">
+      <Filter>SCENE_GAME\h</Filter>
+    </ClInclude>
+    <ClInclude Include="rope_hold_note.h">
+      <Filter>SCENE_GAME\h</Filter>
     </ClInclude>
     <ClInclude Include="debug_params.h">
       <Filter>SCENE_GAME</Filter>
@@ -345,7 +366,10 @@
     <ClInclude Include="mathhelper.h">
       <Filter>SCENE_GAME</Filter>
     </ClInclude>
-    <ClInclude Include="hold_note.h">
+    <ClInclude Include="debugscene\debugrigplayer.h">
+      <Filter>デバッグ</Filter>
+    </ClInclude>
+    <ClInclude Include="rainbow_note.h">
       <Filter>SCENE_GAME\h</Filter>
     </ClInclude>
   </ItemGroup>
@@ -462,6 +486,12 @@
     </FxCompile>
     <FxCompile Include="shader\shader_vertex_skinning.hlsl">
       <Filter>フレームワーク\3D</Filter>
+    </FxCompile>
+    <FxCompile Include="shader\PBRShaderVS.hlsl">
+      <Filter>フレームワーク\シェーダー</Filter>
+    </FxCompile>
+    <FxCompile Include="shader\PBRShaderPS.hlsl">
+      <Filter>フレームワーク\シェーダー</Filter>
     </FxCompile>
   </ItemGroup>
   <ItemGroup>

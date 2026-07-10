@@ -25,21 +25,26 @@ float3 CalcNormalMapWorldNormal(PS_IN In)
 
 	// UVの変化が小さすぎるとTangentを作れないので、その場合は通常の法線で描く。
 	float det = duv1.x * duv2.y - duv1.y * duv2.x;
+	float3 outNormal;
 	if (abs(det) < 0.00001f)
 	{
-		return baseNormal;
+		outNormal = baseNormal;
+	}
+	else
+	{
+		float invDet = 1.0f / det;
+		float3 tangent = normalize((dp1 * duv2.y - dp2 * duv1.y) * invDet);
+		float3 bitangent = normalize((dp2 * duv1.x - dp1 * duv2.x) * invDet);
+
+		// NormalMap内の法線を、Tangent/Bitangent/元の法線を使ってワールド空間へ変換する。
+		outNormal = normalize(
+			normalSample.x * tangent +
+			normalSample.y * bitangent +
+			normalSample.z * baseNormal
+		);
 	}
 
-	float invDet = 1.0f / det;
-	float3 tangent = normalize((dp1 * duv2.y - dp2 * duv1.y) * invDet);
-	float3 bitangent = normalize((dp2 * duv1.x - dp1 * duv2.x) * invDet);
-
-	// NormalMap内の法線を、Tangent/Bitangent/元の法線を使ってワールド空間へ変換する。
-	return normalize(
-		normalSample.x * tangent +
-		normalSample.y * bitangent +
-		normalSample.z * baseNormal
-	);
+	return outNormal;
 }
 
 void main(in PS_IN In, out float4 outDiffuse : SV_Target)

@@ -368,3 +368,5 @@ FodyWeavers.xsd
 
 # Claude Code personal settings
 .claude/CLAUDE.md
+
+*tool/selfeditor_path.txt

@@ -56,7 +56,12 @@ public:
 	~FontRenderer();
 
 	virtual void Draw();
-	void SetColor(XMFLOAT4 color) { m_Color = color; UpdateAtlasTexture(); }
+	void SetColor(XMFLOAT4 color) {
+		if (m_Color.x != color.x || m_Color.y != color.y || m_Color.z != color.z || m_Color.w != color.w) {
+			m_Color = color;
+			UpdateAtlasTexture();
+		}
+	}
 	virtual void SetText(const std::string& text);
 	XMFLOAT4 GetColor() const { return m_Color; }
 

@@ -1,4 +1,4 @@
-#pragma once
+﻿#pragma once
 #include "renderer.h"
 #include "define.h"
 using namespace DirectX;

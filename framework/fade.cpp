@@ -9,6 +9,8 @@
 #include "define.h"
 #include "renderer.h"
 #include "mouse.h"
+#include "debug_ostream.h"
+#include <psapi.h>
 using namespace DirectX;
 
 
@@ -106,6 +108,15 @@ void Fade::SetSceneFade(SCENE next)
 		m_Color.w = 0.0f;
 		m_State = FADE_OUT;
 		m_NextScene = next;
+
+		// 現在のメモリ使用率をデバッグ出力
+		PROCESS_MEMORY_COUNTERS pmc;
+		if (GetProcessMemoryInfo(GetCurrentProcess(), &pmc, sizeof(pmc)))
+		{
+			double physicalMemMB = static_cast<double>(pmc.WorkingSetSize) / (1024.0 * 1024.0);
+			hal::dout << "[Memory Log] SetSceneFade -> Target: " << next 
+			          << " | RAM (Working Set): " << physicalMemMB << " MB" << std::endl;
+		}
 	}
 }
 

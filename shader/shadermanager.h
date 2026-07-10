@@ -9,6 +9,7 @@ enum SHADERTYPE {
 	S_UNLIT = 0,
 	S_LAMBERT,
 	S_PHONG,
+	S_PBR,
 	S_RIM_LIGHT,
 	S_OUTLINE,
 	S_SHADOW_MAP,		// ShadowMap作成用。色ではなく深度だけを描く。	
@@ -21,6 +22,7 @@ const std::string filenames[S_MAX] = {
 	"UnlitTexture",
 	"VertexDirectionalLighting",
 	"PixelDirectionalLighting",
+	"PBRShader",
 	"RimLight",
 	"Outline",
 	"ShadowMap",

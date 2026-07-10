@@ -2,6 +2,7 @@
 
 #include <cmath>
 #include <cstring>
+#define DIRECTINPUT_VERSION 0x0800
 #include <dinput.h>
 #include <hidsdi.h>
 #include <hidusage.h>

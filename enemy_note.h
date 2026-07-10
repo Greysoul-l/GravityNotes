@@ -7,6 +7,4 @@ public:
 	EnemyNote() : NoteBase() {}
 
 	void Init(int lane, int face, float spawnZ, float speed);
-	void OnHit()  override;
-	void OnMiss() override;
 };

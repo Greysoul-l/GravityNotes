@@ -2,6 +2,7 @@
 #include "renderer.h"
 #include "anim_sprite3d.h"
 #include "mathhelper.h"
+#include "split_bilboard.h"
 
 class NoteManager;    // 前方宣言
 class StatusManager;  // 前方宣言
@@ -40,12 +41,15 @@ private:
 
 	NoteManager*   m_pNoteManager;
 	StatusManager* m_pStatusManager;
+	SplitBilBoard* m_pEffectSlash;
+	bool           m_IsEffectSlashActive;
+	bool           m_IsOverridePlaying;
 
 public:
 	// デフォルトコンストラクタを追加し、基底 Sprite3D のコンストラクタを呼ぶ
 	Player()
 		: AnimSprite3D(XMFLOAT3(0.0f, 0.0f, 0.0f), XMFLOAT3(1.0f, 1.0f, 1.0f), XMFLOAT3(0.0f, 0.0f, 0.0f),
-			"asset/model/knight_run.fbx", S_PHONG)
+			"asset/model/knight_02.fbx", S_PBR)
 	{}
 	void Init(NoteManager* nm, StatusManager* sm);
 	void Update();

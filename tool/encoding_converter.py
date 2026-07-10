@@ -108,7 +108,12 @@ def write_file(path, text, encoding, eol):
         raw = b'\xef\xbb\xbf' + normalized.encode('utf-8')
     else:
         raw = normalized.encode(encoding)
+    
+    if path.exists():
+        if path.read_bytes() == raw:
+            return False
     path.write_bytes(raw)
+    return True
 
 
 def resolve_target_dir(raw, default_root):
@@ -177,9 +182,12 @@ def convert_directory(target_dir, config, project_root):
             encoding, desc = enc_info
             eol = props.get('end_of_line', 'crlf')
             content = read_file_content(filepath)
-            write_file(filepath, content, encoding, eol)
-            print(f'  OK      : {rel} -> {desc}, EOL={eol}')
-            ok += 1
+            if write_file(filepath, content, encoding, eol):
+                print(f'  OK      : {rel} -> {desc}, EOL={eol}')
+                ok += 1
+            else:
+                print(f'  SKIP    : {rel} (already {desc}, EOL={eol})')
+                skip += 1
         except Exception as e:
             print(f'  ERROR   : {filepath.name} - {e}')
             err += 1

@@ -1,4 +1,4 @@
-#include "field.h"
+﻿#include "field.h"
 #include "shadermanager.h"
 #include "define.h"
 #include "game.h"
@@ -8,12 +8,14 @@ using namespace DirectX;
 
 void Field::Init() {
 	m_Scale = { 5.0f,5.0f,5.0f };
-	m_Model = ModelLoad("asset/model/field_allnormal.fbx");
-	m_ShaderType = S_LAMBERT;
+	m_ModelNormal = ModelLoad("asset/model/field_allnormal.fbx");
+	m_ModelHasiranashi = ModelLoad("asset/model/field_hasiranashi.fbx");
+	m_Model = m_ModelHasiranashi;
+	m_ShaderType = S_PHONG;
 
 	// Sprite3Dのメンバ変数を初期化
-	m_ModelSize = ModelGetSize(m_Model);
-	m_OriginalColor = ModelGetAverageMaterialColor(m_Model);
+	m_ModelSize = ModelGetSize(m_ModelNormal);
+	m_OriginalColor = ModelGetAverageMaterialColor(m_ModelNormal);
 
 	float L = GetDisplaySize().z;
 	if (L <= 0.1f) {
@@ -22,6 +24,11 @@ void Field::Init() {
 
 	for (int i = 0; i < NUM_FIELDS; ++i) {
 		m_ScrollPos[i] = (float)i * L;
+		if (i % 2 == 0) {
+			m_FieldModels[i] = m_ModelNormal;
+		} else {
+			m_FieldModels[i] = m_ModelHasiranashi;
+		}
 	}
 }
 
@@ -38,7 +45,6 @@ void Field::Update(float speed){
 
 	// 画角から見切れたらまた奥に戻す
 	// カメラのZ座標は -8.0f。手前見切れ境界を -10.0f とする。
-	// モデルの中心が m_ScrollPos[i] で、長さが L なので、モデルの奥側端は m_ScrollPos[i] + L / 2.0f
 	float limitZ = -10.0f;
 	for (int i = 0; i < NUM_FIELDS; ++i) {
 		if (m_ScrollPos[i] + L / 2.0f < limitZ) {
@@ -61,10 +67,20 @@ void Field::Draw() {
 		XMFLOAT3 tempPos = originalPos;
 		tempPos.z = m_ScrollPos[i];
 		SetPos(tempPos);
+		m_Model = m_FieldModels[i];
 		Sprite3D::Draw();
 	}
 	SetPos(originalPos);
 }
 
 void Field::Finalize() {
+	if (m_ModelNormal) {
+		ModelRelease(m_ModelNormal);
+		m_ModelNormal = nullptr;
+	}
+	if (m_ModelHasiranashi) {
+		ModelRelease(m_ModelHasiranashi);
+		m_ModelHasiranashi = nullptr;
+	}
+	m_Model = nullptr; // Sprite3Dの二重解放防止
 }

@@ -1,4 +1,4 @@
-#include "model.h"
+﻿#include "model.h"
 #include "anim_sprite3d.h"
 
 #include "camera.h"

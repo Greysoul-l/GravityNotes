@@ -1,4 +1,4 @@
-/*==============================================================================
+﻿/*==============================================================================
 
    日本語フォont描画システム実装 [font.cpp]
 										  Author : Copilot
@@ -658,8 +658,6 @@ void FontRenderer::Draw() {
 		prev_glyph_draw = glyph_index;
 		char_count++;
 	}
-
-	SetDepthEnable(true);
 }
 
 void FontRenderer::SetText(const std::string& text) {

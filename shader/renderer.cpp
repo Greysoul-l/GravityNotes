@@ -486,7 +486,7 @@ HRESULT InitRenderer(HINSTANCE hInstance, HWND hWnd, BOOL bWindow)
 	depthStencilDesc.StencilEnable = FALSE;
 	g_D3DDevice->CreateDepthStencilState( &depthStencilDesc, &g_DepthStateEnable );//深度有効ステート
 
-	//depthStencilDesc.DepthEnable = FALSE;
+	depthStencilDesc.DepthEnable = FALSE;
 	depthStencilDesc.DepthWriteMask	= D3D11_DEPTH_WRITE_MASK_ZERO;
 	g_D3DDevice->CreateDepthStencilState( &depthStencilDesc, &g_DepthStateDisable );//深度無効ステート
 
@@ -670,7 +670,7 @@ void Clear(void)
 //=============================================================================
 void Present(void)
 {
-	g_SwapChain->Present( 0, 0 );
+	g_SwapChain->Present( 1, 0 );
 }
 
 

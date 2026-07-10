@@ -18,9 +18,11 @@ void StatusManager::Finalize()
 
 void StatusManager::OnJudge(JUDGE result)
 {
+	m_LastJudge   = result;
+	m_HasNewJudge = true;
 	if (result == JUDGE_MISS)
 	{
-		m_HP--;
+		m_HP-=30;
 		m_Combo = 0;
 		m_MissCount++;
 		return;
@@ -40,17 +42,11 @@ void StatusManager::OnJudgeHold(JUDGE result)
 	OnJudge(result);
 }
 
-RESULT StatusManager::GetResult() const
+SendResult StatusManager::GetResult() const
 {
-	int   total    = m_HitCount + m_MissCount;
-	float accuracy = total > 0 ? static_cast<float>(m_HitCount) / total * 100.0f : 0.0f;
-
-	RESULT r;
-	r.score    = m_Score;
-	r.rank     = "";   // TODO: ランク計算
-	r.accurary = accuracy;
+	SendResult r;
 	r.maxCombo = m_MaxCombo;
-	r.success  = m_HitCount;
-	r.miss     = m_MissCount;
+	r.hits  = m_HitCount;
+	r.misses = m_MissCount;
 	return r;
 }

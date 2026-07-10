@@ -8,13 +8,13 @@
 #include "result.h"
 #include "debugscene.h"
 #include "define.h"
+#include "debug_ui.h"
 using namespace DirectX;
 
 static SCENE scene = SCENE_TITLE;
-
 //SCENE_STAGESELECTからSCENE_GAMEへの読み込み指定　.jsonまで含まれている
 static std::string playjson;
-static RESULT result = {};
+static SendResult result = {};
 
 void Init( void )
 {
@@ -86,6 +86,8 @@ void Draw( void )
 		default:
 		break;
 	}
+
+	DebugUI_Draw();
 }
 
 void Finalize( void )
@@ -136,9 +138,9 @@ const std::string& GetPlayJson(void)
 	return playjson;
 }
 
-void SetResult(const RESULT& r) {
+void SetResult(const SendResult& r) {
 	result = r;
 }
-const RESULT* GetResult() {
+const SendResult* GetResult() {
 	return &result;
 }

@@ -10,15 +10,13 @@
 #include "result.h"
 #include "light_game.h"
 #include "game_ui.h"
+#include "game.h"
 
-static bool s_IsOpen = false;
+static bool s_IsOpen = true;
 
 void DebugUI_Draw()
 {
 #ifdef _DEBUG
-    if (Keyboard_IsKeyDownTrigger(KK_D1))
-        s_IsOpen = !s_IsOpen;
-
     ImGui_ImplDX11_NewFrame();
     ImGui_ImplWin32_NewFrame();
     ImGui::NewFrame();
@@ -37,19 +35,10 @@ void DebugUI_Draw()
 		Result_DebugUIDraw();
 	}
 
-    /*ImGui::Begin("LD Parameters", &s_IsOpen);
-
-    auto& p = D_PARAMS;
-
-    ImGui::SeparatorText("Notes");
-    ImGui::SliderFloat("Speed",        &p.noteSpeed,        1.0f,  60.0f, "%.1f u/s");
-    ImGui::SliderFloat("Hit Distance", &p.hitDistance,      0.5f,  10.0f, "%.2f u");
-
-    ImGui::SeparatorText("Player");
-    ImGui::SliderFloat("Lane Width",   &p.laneWidth,        0.5f,  5.0f,  "%.2f u");
-    ImGui::SliderFloat("Gravity Time", &p.gravityTransTime, 0.05f, 1.0f,  "%.2f s");
-
-    ImGui::End();*/
+	if (GetScene() == SCENE_GAME)
+	{
+		Game_DebugUIDraw();
+	}
 
     ImGui::Render();
     ImGui_ImplDX11_RenderDrawData(ImGui::GetDrawData());

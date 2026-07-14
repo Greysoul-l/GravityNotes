@@ -106,6 +106,9 @@
     <ClCompile Include="scene.cpp">
       <Filter>フレームワーク\etc</Filter>
     </ClCompile>
+    <ClCompile Include="options_manager.cpp">
+      <Filter>フレームワーク\etc</Filter>
+    </ClCompile>
     <ClCompile Include="framework\mouse.cpp">
       <Filter>フレームワーク\input</Filter>
     </ClCompile>
@@ -136,13 +139,25 @@
     <ClCompile Include="enemy_note.cpp">
       <Filter>SCENE_GAME\cpp</Filter>
     </ClCompile>
+    <ClCompile Include="enemy_defeat_effect.cpp">
+      <Filter>SCENE_GAME\cpp</Filter>
+    </ClCompile>
     <ClCompile Include="barrier_note.cpp">
       <Filter>SCENE_GAME\cpp</Filter>
     </ClCompile>
     <ClCompile Include="orb_note.cpp">
       <Filter>SCENE_GAME\cpp</Filter>
     </ClCompile>
+    <ClCompile Include="orb_collect_effect.cpp">
+      <Filter>SCENE_GAME\cpp</Filter>
+    </ClCompile>
+    <ClCompile Include="particle_manager.cpp">
+      <Filter>SCENE_GAME\cpp</Filter>
+    </ClCompile>
     <ClCompile Include="light_game.cpp">
+      <Filter>SCENE_GAME\cpp</Filter>
+    </ClCompile>
+    <ClCompile Include="three_point_light.cpp">
       <Filter>SCENE_GAME\cpp</Filter>
     </ClCompile>
     <ClCompile Include="status_manager.cpp">
@@ -152,9 +167,6 @@
       <Filter>SCENE_GAME\cpp</Filter>
     </ClCompile>
     <ClCompile Include="hold_note.cpp">
-      <Filter>SCENE_GAME\cpp</Filter>
-    </ClCompile>
-    <ClCompile Include="rope_hold_note.cpp">
       <Filter>SCENE_GAME\cpp</Filter>
     </ClCompile>
     <ClCompile Include="debug_ui.cpp">
@@ -303,6 +315,9 @@
     <ClInclude Include="scene.h">
       <Filter>フレームワーク\etc</Filter>
     </ClInclude>
+    <ClInclude Include="options_manager.h">
+      <Filter>フレームワーク\etc</Filter>
+    </ClInclude>
     <ClInclude Include="framework\mouse.h">
       <Filter>フレームワーク\input</Filter>
     </ClInclude>
@@ -336,13 +351,25 @@
     <ClInclude Include="enemy_note.h">
       <Filter>SCENE_GAME\h</Filter>
     </ClInclude>
+    <ClInclude Include="enemy_defeat_effect.h">
+      <Filter>SCENE_GAME\h</Filter>
+    </ClInclude>
     <ClInclude Include="barrier_note.h">
       <Filter>SCENE_GAME\h</Filter>
     </ClInclude>
     <ClInclude Include="orb_note.h">
       <Filter>SCENE_GAME\h</Filter>
     </ClInclude>
+    <ClInclude Include="orb_collect_effect.h">
+      <Filter>SCENE_GAME\h</Filter>
+    </ClInclude>
+    <ClInclude Include="particle_manager.h">
+      <Filter>SCENE_GAME\h</Filter>
+    </ClInclude>
     <ClInclude Include="light_game.h">
+      <Filter>SCENE_GAME\h</Filter>
+    </ClInclude>
+    <ClInclude Include="three_point_light.h">
       <Filter>SCENE_GAME\h</Filter>
     </ClInclude>
     <ClInclude Include="status_manager.h">
@@ -352,9 +379,6 @@
       <Filter>SCENE_GAME\h</Filter>
     </ClInclude>
     <ClInclude Include="hold_note.h">
-      <Filter>SCENE_GAME\h</Filter>
-    </ClInclude>
-    <ClInclude Include="rope_hold_note.h">
       <Filter>SCENE_GAME\h</Filter>
     </ClInclude>
     <ClInclude Include="debug_params.h">
@@ -425,6 +449,10 @@
     <Filter Include="SCENE_GAME\h">
       <UniqueIdentifier>{2846224a-66c3-4129-8854-60b8e97ccc87}</UniqueIdentifier>
     </Filter>
+    <Filter Include="リソース ファイル">
+      <UniqueIdentifier>{67DA6AB6-F800-4c08-8B7A-83BB121AAD01}</UniqueIdentifier>
+      <Extensions>rc;ico;cur;bmp;dlg;rc2;rct;bin;rgs;gif;jpg;jpeg;jpe;resx;tiff;tif;png;wav;mfcribbon-ms</Extensions>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
     <FxCompile Include="shader\Common.hlsl">
@@ -434,6 +462,12 @@
       <Filter>フレームワーク\シェーダー</Filter>
     </FxCompile>
     <FxCompile Include="shader\UnlitTextureVS.hlsl">
+      <Filter>フレームワーク\シェーダー</Filter>
+    </FxCompile>
+    <FxCompile Include="shader\ChromaKeyPS.hlsl">
+      <Filter>フレームワーク\シェーダー</Filter>
+    </FxCompile>
+    <FxCompile Include="shader\ChromaKeyVS.hlsl">
       <Filter>フレームワーク\シェーダー</Filter>
     </FxCompile>
     <FxCompile Include="shader\VertexDirectionalLightingPS.hlsl">
@@ -484,6 +518,12 @@
     <FxCompile Include="shader\NormalMapShadowReceiveVS.hlsl">
       <Filter>フレームワーク\シェーダー</Filter>
     </FxCompile>
+    <FxCompile Include="shader\PhongShadowPS.hlsl">
+      <Filter>フレームワーク\シェーダー</Filter>
+    </FxCompile>
+    <FxCompile Include="shader\PhongShadowVS.hlsl">
+      <Filter>フレームワーク\シェーダー</Filter>
+    </FxCompile>
     <FxCompile Include="shader\shader_vertex_skinning.hlsl">
       <Filter>フレームワーク\3D</Filter>
     </FxCompile>
@@ -491,6 +531,12 @@
       <Filter>フレームワーク\シェーダー</Filter>
     </FxCompile>
     <FxCompile Include="shader\PBRShaderPS.hlsl">
+      <Filter>フレームワーク\シェーダー</Filter>
+    </FxCompile>
+    <FxCompile Include="shader\BillboardShadowMapPS.hlsl">
+      <Filter>フレームワーク\シェーダー</Filter>
+    </FxCompile>
+    <FxCompile Include="shader\BillboardShadowMapVS.hlsl">
       <Filter>フレームワーク\シェーダー</Filter>
     </FxCompile>
   </ItemGroup>
@@ -510,5 +556,15 @@
     <None Include="markdown\anim_sprite3d_usage.md">
       <Filter>マークダウン</Filter>
     </None>
+  </ItemGroup>
+  <ItemGroup>
+    <ResourceCompile Include="GravityNotes.rc">
+      <Filter>リソース ファイル</Filter>
+    </ResourceCompile>
+  </ItemGroup>
+  <ItemGroup>
+    <Image Include="asset\texture\icon.ico">
+      <Filter>リソース ファイル</Filter>
+    </Image>
   </ItemGroup>
 </Project>

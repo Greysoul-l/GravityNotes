@@ -459,7 +459,7 @@ XMMATRIX AiMatrixToXMMatrix(const aiMatrix4x4& mat)
 }
 
 // ノードを再帰的に描画する内部関数
-void RenderNode(MODEL* model, aiNode* node, XMMATRIX parentTransform, const XMFLOAT4& color, bool useColorReplace = false)
+void RenderNode(MODEL* model, aiNode* node, XMMATRIX parentTransform, const XMFLOAT4& color, bool useColorReplace = false, ID3D11ShaderResourceView* customTexture = nullptr)
 {
 	// このノードのローカル変換行列と親の変換を組み合わせ
 	XMMATRIX currentTransform = AiMatrixToXMMatrix(node->mTransformation) * parentTransform;
@@ -510,8 +510,8 @@ void RenderNode(MODEL* model, aiNode* node, XMMATRIX parentTransform, const XMFL
 		// ただし既存の ModelDraw が WVP を設定しているため、ここでは単純化
 		// 本来は RenderNodeAnimation と同様に WVP を再計算すべきだが、互換性のために最小限の変更に留める
 
-		// テクスチャをシェーダーに設定(プリキャッシュされた値を使用)
-		ID3D11ShaderResourceView* textureToSet = model->MeshMaterials[meshIndex].textureView;
+		// テクスチャをシェーダーに設定(プリキャッシュされた値を使用。カスタムテクスチャがあればそれを使用)
+		ID3D11ShaderResourceView* textureToSet = customTexture ? customTexture : model->MeshMaterials[meshIndex].textureView;
 		GetDeviceContext()->PSSetShaderResources(0, 1, &textureToSet);
 		ID3D11ShaderResourceView* normalTextureToSet = model->MeshMaterials[meshIndex].normalTextureView;
 		GetDeviceContext()->PSSetShaderResources(2, 1, &normalTextureToSet);
@@ -544,7 +544,7 @@ void RenderNode(MODEL* model, aiNode* node, XMMATRIX parentTransform, const XMFL
 	// 子ノードを再帰実行
 	for (unsigned int i = 0; i < node->mNumChildren; i++)
 	{
-		RenderNode(model, node->mChildren[i], currentTransform, color, useColorReplace);
+		RenderNode(model, node->mChildren[i], currentTransform, color, useColorReplace, customTexture);
 	}
 }
 
@@ -1373,7 +1373,7 @@ void ModelRelease(MODEL* model)
 	}
 }
 
-void ModelDraw(MODEL* model, XMFLOAT3 pos, XMFLOAT3 rot, XMFLOAT3 scale, const XMFLOAT4& color, bool useColorReplace, SHADERTYPE shadertype)
+void ModelDraw(MODEL* model, XMFLOAT3 pos, XMFLOAT3 rot, XMFLOAT3 scale, const XMFLOAT4& color, bool useColorReplace, SHADERTYPE shadertype, ID3D11ShaderResourceView* customTexture)
 {
 	if (!model) return;
 
@@ -1410,7 +1410,7 @@ void ModelDraw(MODEL* model, XMFLOAT3 pos, XMFLOAT3 rot, XMFLOAT3 scale, const X
 	}
 
 	XMMATRIX identity = XMMatrixIdentity();
-	RenderNode(model, model->AiScene->mRootNode, identity, finalColor, useColorReplace);
+	RenderNode(model, model->AiScene->mRootNode, identity, finalColor, useColorReplace, customTexture);
 }
 
 void ModelDrawShadowMap(MODEL* model, XMFLOAT3 pos, XMFLOAT3 rot, XMFLOAT3 scale, XMMATRIX lightView, XMMATRIX lightProjection)
@@ -1443,6 +1443,82 @@ void ModelDrawShadowMap(MODEL* model, XMFLOAT3 pos, XMFLOAT3 rot, XMFLOAT3 scale
 	XMMATRIX identity = XMMatrixIdentity();
 	// RenderNodeは通常描画と同じメッシュを描く。ShadowMapでは色やテクスチャは最終結果に使われない。
 	RenderNode(model, model->AiScene->mRootNode, identity, XMFLOAT4(1.0f, 1.0f, 1.0f, 1.0f), false);
+}
+
+// スキニングモデルをShadowMapへ描く。
+// 既存のスキニング用VS(ボーンで頂点を動かす)を流用し、
+// View/Projectionにライト視点の行列を入れて深度だけを書き込む。
+// ピクセルシェーダーは色を出さない ShadowMap 用の空PSを使う。
+void ModelDrawShadowMapSkinned(MODEL* model, XMFLOAT3 pos, XMFLOAT3 rot, XMFLOAT3 scale, const BoneMatrices& boneMatrices, XMMATRIX lightView, XMMATRIX lightProjection)
+{
+	if (!model) return;
+
+	// スキニングリソース(専用VS・入力レイアウト・ボーン定数バッファ)を用意
+	if (!(model->HasSkinning && EnsureSkinningResources()))
+	{
+		// スキニングが無いモデルは静的版で影を落とす
+		ModelDrawShadowMap(model, pos, rot, scale, lightView, lightProjection);
+		return;
+	}
+
+	ID3D11DeviceContext* context = GetDeviceContext();
+
+	context->IASetInputLayout(g_SkinningVertexLayout);
+	context->VSSetShader(g_SkinningVertexShader, nullptr, 0);
+	// ボーン行列をb7(VS)へ転送
+	D3D11_MAPPED_SUBRESOURCE mapped;
+	if (SUCCEEDED(context->Map(g_SkinningBoneBuffer, 0, D3D11_MAP_WRITE_DISCARD, 0, &mapped)))
+	{
+		memcpy(mapped.pData, boneMatrices.matrices, sizeof(XMMATRIX) * BoneMatrices::MAX_BONES);
+		context->Unmap(g_SkinningBoneBuffer, 0);
+		context->VSSetConstantBuffers(7, 1, &g_SkinningBoneBuffer);
+	}
+
+	// 深度だけを書く空のピクセルシェーダー(ShadowMap用)
+	context->PSSetShader(GetShader(S_SHADOW_MAP)->GetPixelShader(), nullptr, 0);
+
+	XMMATRIX TranslationMatrix = XMMatrixTranslation(pos.x, pos.y, pos.z);
+	XMMATRIX RotationMatrix = XMMatrixRotationRollPitchYaw(
+		XMConvertToRadians(rot.x),
+		XMConvertToRadians(rot.y),
+		XMConvertToRadians(rot.z));
+	XMMATRIX ScalingMatrix = XMMatrixScaling(scale.x, scale.y, scale.z);
+	XMMATRIX World = ScalingMatrix * RotationMatrix * TranslationMatrix;
+
+	SetWorldMatrix(World);
+	// View/Projectionにライト視点の行列を入れる
+	SetViewMatrix(lightView);
+	SetProjectionMatrix(lightProjection);
+
+	context->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
+
+	// スキニング済み頂点バッファでメッシュを描画
+	for (unsigned int m = 0; m < model->AiScene->mNumMeshes; m++)
+	{
+		ID3D11Buffer* vertexBuffer = nullptr;
+		UINT stride = sizeof(VertexSkinned);
+		UINT offset = 0;
+		if (model->SkinnedVertexBuffer && model->SkinnedVertexBuffer[m])
+		{
+			vertexBuffer = model->SkinnedVertexBuffer[m];
+		}
+		else if (model->VertexBuffer)
+		{
+			// スキニングバッファが無いメッシュは通常頂点で
+			vertexBuffer = model->VertexBuffer[m];
+			stride = sizeof(Vertex3D);
+		}
+		if (!vertexBuffer) continue;
+
+		context->IASetVertexBuffers(0, 1, &vertexBuffer, &stride, &offset);
+		context->IASetIndexBuffer(model->IndexBuffer[m], DXGI_FORMAT_R32_UINT, 0);
+
+		unsigned int indexCount = model->MeshIndexCounts[m];
+		if (indexCount > 0)
+		{
+			context->DrawIndexed(indexCount, 0, 0);
+		}
+	}
 }
 
 void ModelAnimationDraw(MODEL* model, XMFLOAT3 pos, XMFLOAT3 rot, XMFLOAT3 scale, const BoneMatrices& boneMatrices, const XMFLOAT4& color, bool useColorReplace, SHADERTYPE shadertype, const AnimationClip* clip, double animTime)

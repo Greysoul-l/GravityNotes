@@ -9,15 +9,27 @@
 #include "debugscene.h"
 #include "define.h"
 #include "debug_ui.h"
+#include "options_manager.h"
 using namespace DirectX;
 
 static SCENE scene = SCENE_TITLE;
-//SCENE_STAGESELECTからSCENE_GAMEへの読み込み指定　.jsonまで含まれている
-static std::string playjson;
+static std::string playjson;		//SCENE_STAGESELECTからSCENE_GAMEへのjson指定
 static SendResult result = {};
 
 void Init( void )
 {
+	static bool optionChecked = false;
+	if (!optionChecked)
+	{
+		optionChecked = true;
+		const std::string& directPlayPath = Options_GetDirectPlayPath();
+		if (!directPlayPath.empty())
+		{
+			SetPlayJson(directPlayPath);
+			scene = SCENE_GAME;
+		}
+	}
+
 	switch ( scene )
 	{
 		case SCENE_TITLE:

@@ -1,16 +1,17 @@
 ﻿#include "game_ui.h"
 #include "define.h"
 #include <string>
+#include "sound.h"
 
 // --- 仮置き定数（後で調整してください） ---
 //コンボ表示
-static constexpr float DIGIT_W        = 60.0f;   // 1桁の幅
-static constexpr float DIGIT_H        = 80.0f;   // 1桁の高さ
-static constexpr float DIGIT_SPACING  = 55.0f;   // 桁間隔
-static constexpr float DIGIT_ANCHOR_X = 100.0f;   // 1桁目（一の位）の固定X座標
-static constexpr float COMBO_CENTER_Y = 50.0f;  // 数字のY座標
+static constexpr float DIGIT_W        = 45.0f;   // 1桁の幅
+static constexpr float DIGIT_H        = 60.0f;   // 1桁の高さ
+static constexpr float DIGIT_SPACING  = 35.0f;   // 桁間隔
+static constexpr float DIGIT_ANCHOR_X = 150.0f;   // 1桁目（一の位）の固定X座標
+static constexpr float COMBO_CENTER_Y = 45.0f;  // 数字のY座標
 static constexpr float LABEL_X        = DIGIT_ANCHOR_X + DIGIT_W * 0.5f + 8.0f;
-static constexpr float LABEL_Y        = COMBO_CENTER_Y + DIGIT_H * 0.5f;
+static constexpr float LABEL_Y        = COMBO_CENTER_Y;
 
 // Hit / Miss 表示
 static constexpr float JUDGE_X           = SCREEN_WIDTH  * 0.5f;   // 表示中心X
@@ -20,8 +21,8 @@ static constexpr float JUDGE_H           = 150.0f;                 // スプラ�
 static constexpr float JUDGE_DISPLAY_SEC = 0.6f;                   // 表示秒数
 
 // HP バー
-static constexpr float HP_BAR_LEFT  = SCREEN_WIDTH  * 0.80f;  // バー左端X
-static constexpr float HP_BAR_Y     = SCREEN_HEIGHT * 0.05f;  // バー中心Y
+static constexpr float HP_BAR_LEFT  = SCREEN_WIDTH  * 0.78f;  // バー左端X
+static constexpr float HP_BAR_Y     = SCREEN_HEIGHT * 0.06f;  // バー中心Y
 static constexpr float HP_BAR_MAX_W = 250.0f;                 // バー最大幅
 static constexpr float HP_BAR_H     = 24.0f;                  // バー高さ
 static constexpr float HP_TEXT_X    = HP_BAR_LEFT;            // テキスト左端X
@@ -74,7 +75,7 @@ void GameUI::Init()
         BLENDSTATE_NONE,
         L"asset\\texture\\fade.png"
     );
-    // Hit / Miss スプライト（初期は非表示、タイマーで制御）
+    // Hit / Miss / Kaihi スプライト（初期は非表示、タイマーで制御）
     m_pHitSprite = new Sprite2D(
         { JUDGE_X, JUDGE_Y }, { JUDGE_W, JUDGE_H }, 0.0f,
         { 1.0f, 1.0f, 1.0f, 1.0f }, BLENDSTATE_ALFA,
@@ -85,6 +86,11 @@ void GameUI::Init()
         { 1.0f, 1.0f, 1.0f, 1.0f }, BLENDSTATE_ALFA,
         L"asset\\texture\\Ingame_Rank_miss_UI.png"
     );
+    m_pKaihiSprite = new Sprite2D(
+        { JUDGE_X, JUDGE_Y }, { JUDGE_W, JUDGE_H }, 0.0f,
+        { 1.0f, 1.0f, 1.0f, 1.0f }, BLENDSTATE_ALFA,
+        L"asset\\texture\\Ingame_Rank_just_UI.png"
+    );
 
     // HP テキスト
     m_pHPText = new FontRenderer(
@@ -94,10 +100,137 @@ void GameUI::Init()
         "HP 1000/ 1000",
         TA_START
     );
+
+    // 演出用スプライトの生成
+    m_pFadeOverlay = new Sprite2D(
+        { SCREEN_WIDTH / 2.0f, SCREEN_HEIGHT / 2.0f },
+        { (float)SCREEN_WIDTH, (float)SCREEN_HEIGHT },
+        0.0f,
+        { 0.0f, 0.0f, 0.0f, 0.0f }, // 初期値は透明
+        BLENDSTATE_ALFA,
+        L"asset\\texture\\fade.png"
+    );
+
+    m_pClearSprite = new Sprite2D(
+        { SCREEN_WIDTH / 2.0f, SCREEN_HEIGHT / 2.0f },
+        { 800.0f, 800.0f },
+        0.0f,
+        { 1.0f, 1.0f, 1.0f, 1.0f },
+        BLENDSTATE_ALFA,
+        L"asset\\texture\\Result_Text_Clear_UI.png"
+    );
+
+    m_pAllHitSprite = new Sprite2D(
+        { SCREEN_WIDTH / 2.0f, SCREEN_HEIGHT / 2.0f - 150.0f }, // 150上
+        { 800.0f, 800.0f },
+        0.0f,
+        { 1.0f, 1.0f, 1.0f, 1.0f },
+        BLENDSTATE_ALFA,
+        L"asset\\texture\\Result_Text_AllHit_UI.png"
+    );
+
+    m_pGameOverSprite = new Sprite2D(
+        { SCREEN_WIDTH / 2.0f, SCREEN_HEIGHT / 2.0f },
+        { 800.0f, 800.0f },
+        0.0f,
+        { 1.0f, 1.0f, 1.0f, 1.0f },
+        BLENDSTATE_ALFA,
+        L"asset\\texture\\Result_Text_GameOver_UI.png"
+    );
+
+    m_ShowEndOverlay = false;
+    m_ShowLogos      = false;
+    m_IsDead         = false;
+    m_IsAllHit       = false;
+    m_FadeTimer      = 0.0f;
+    m_FadeDuration   = 3.0f;
+    m_LogoAnimTimer  = 0.0f;
+    m_LogoAnimDuration = 0.35f;
+
+    // 風切りエフェクトの初期化
+    m_pWindCutSprite = new FadableSplitSprite(
+        { SCREEN_WIDTH / 2.0f, SCREEN_HEIGHT / 2.0f },
+        { (float)SCREEN_WIDTH, (float)SCREEN_HEIGHT },
+        0.0f,
+        { 1.0f, 1.0f, 1.0f, 1.0f },
+        BLENDSTATE_ALFA,
+        L"asset\\texture\\effect_windCut_ver01.png",
+        5, 6
+    );
+    m_WindCutAnimTimer = 0.0f;
+    m_WindCutAlpha     = 0.0f;
+    m_IsHoldingRainbow = false;
+
+    // SEロード
+    m_pStageClearSe = LoadMP3("asset/sound/se/StageClear.mp3");
+    m_pGameOverSe   = LoadMP3("asset/sound/se/GameOver.mp3");
+    m_pAllHitSe     = LoadMP3("asset/sound/se/AllHit.mp3");
 }
 
-void GameUI::Update(const StatusManager* pStatus)
+void GameUI::Reset()
 {
+    m_LastCombo   = -1;
+    UpdateComboDigits(0);
+
+    m_LastHP   = -1;
+    UpdateHP(1000, 1000);
+
+    m_JudgeTimer   = 0.0f;
+    m_CurrentJudge = JUDGE_NONE;
+
+    m_ShowEndOverlay = false;
+    m_ShowLogos      = false;
+    m_IsDead         = false;
+    m_IsAllHit       = false;
+
+    m_FadeTimer    = 0.0f;
+    m_LogoAnimTimer    = 0.0f;
+
+    m_WindCutAnimTimer = 0.0f;
+    m_WindCutAlpha     = 0.0f;
+    m_IsHoldingRainbow = false;
+
+    if (m_pStageClearSe != nullptr) {
+        StopSound(m_pStageClearSe);
+    }
+    if (m_pGameOverSe != nullptr) {
+        StopSound(m_pGameOverSe);
+    }
+    if (m_pAllHitSe != nullptr) {
+        StopSound(m_pAllHitSe);
+    }
+}
+
+void GameUI::Update(const StatusManager* pStatus, bool isHoldingRainbow)
+{
+    m_IsHoldingRainbow = isHoldingRainbow;
+
+    if (m_IsHoldingRainbow)
+    {
+        m_WindCutAlpha += (1.0f / 0.24f) / FPS; // 約0.24秒でフェードイン
+        if (m_WindCutAlpha > 1.0f) m_WindCutAlpha = 1.0f;
+    }
+    else
+    {
+        m_WindCutAlpha -= (1.0f / 0.30f) / FPS; // 約0.30秒でフェードアウト
+        if (m_WindCutAlpha < 0.0f) m_WindCutAlpha = 0.0f;
+    }
+
+    if (m_WindCutAlpha > 0.0f)
+    {
+        m_WindCutAnimTimer += 1.0f / FPS;
+        int textureNumber = static_cast<int>(m_WindCutAnimTimer * 30.0f) % 30;
+        if (m_pWindCutSprite)
+        {
+            m_pWindCutSprite->SetTextureNumber(textureNumber);
+            m_pWindCutSprite->SetColor({ 1.0f, 1.0f, 1.0f, m_WindCutAlpha });
+        }
+    }
+    else
+    {
+        m_WindCutAnimTimer = 0.0f;
+    }
+
     int combo = pStatus->GetCombo();
     if (combo != m_LastCombo)
     {
@@ -116,7 +249,60 @@ void GameUI::Update(const StatusManager* pStatus)
     if (m_JudgeTimer > 0.0f)
         m_JudgeTimer -= 1.0f / FPS;
 
+    // 終了時の透過フェードイン更新
+    if (m_ShowEndOverlay && m_FadeTimer < m_FadeDuration)
+    {
+        m_FadeTimer += 1.0f / FPS;
+        if (m_FadeTimer > m_FadeDuration)
+            m_FadeTimer = m_FadeDuration;
 
+        float alpha = (m_FadeTimer / m_FadeDuration) * 0.5f; // 最大0.5
+        if (m_pFadeOverlay)
+            m_pFadeOverlay->SetColor({ 0.0f, 0.0f, 0.0f, alpha });
+    }
+
+    // ロゴ「ぽこん！」ポップアニメーション更新
+    if (m_ShowLogos && m_LogoAnimTimer < m_LogoAnimDuration)
+    {
+        m_LogoAnimTimer += 1.0f / FPS;
+        if (m_LogoAnimTimer > m_LogoAnimDuration)
+            m_LogoAnimTimer = m_LogoAnimDuration;
+
+        float t = m_LogoAnimTimer / m_LogoAnimDuration; // 0.0 -> 1.0
+
+        // 急激に表示されるよう、立ち上がりを早くする (tの平方根を使用)
+        float alpha = sqrtf(t);
+        if (alpha > 1.0f) alpha = 1.0f;
+
+        // Ease-Out Back イージング (ぽこんと弾む)
+        float s = 1.0f;
+        if (t < 1.0f)
+        {
+            float c1 = 1.70158f;
+            float c3 = c1 + 1.0f;
+            float tm1 = t - 1.0f;
+            s = 1.0f + c3 * tm1 * tm1 * tm1 + c1 * tm1 * tm1;
+        }
+
+        float baseSize = 800.0f;
+        float currentSize = baseSize * s;
+
+        if (m_pClearSprite)
+        {
+            m_pClearSprite->SetColor({ 1.0f, 1.0f, 1.0f, alpha });
+            m_pClearSprite->SetSize({ currentSize, currentSize });
+        }
+        if (m_pAllHitSprite)
+        {
+            m_pAllHitSprite->SetColor({ 1.0f, 1.0f, 1.0f, alpha });
+            m_pAllHitSprite->SetSize({ currentSize, currentSize });
+        }
+        if (m_pGameOverSprite)
+        {
+            m_pGameOverSprite->SetColor({ 1.0f, 1.0f, 1.0f, alpha });
+            m_pGameOverSprite->SetSize({ currentSize, currentSize });
+        }
+    }
 }
 
 void GameUI::UpdateComboDigits(int combo)
@@ -148,8 +334,8 @@ void GameUI::UpdateComboDigits(int combo)
 void GameUI::NotifyJudge(JUDGE judge)
 {
     if (judge == JUDGE_NONE) return;
-    m_ShowHit    = (judge != JUDGE_MISS);
-    m_JudgeTimer = JUDGE_DISPLAY_SEC;
+    m_CurrentJudge = judge;
+    m_JudgeTimer   = JUDGE_DISPLAY_SEC;
 }
 
 void GameUI::UpdateHP(int hp, int maxHP)
@@ -165,16 +351,23 @@ void GameUI::UpdateHP(int hp, int maxHP)
 
 void GameUI::Draw()
 {
+    // 風切りエフェクト（背景側としてUIの背後に描画する）
+    if (m_WindCutAlpha > 0.0f && m_pWindCutSprite)
+    {
+        m_pWindCutSprite->Draw();
+    }
+
     // HP
     m_pHPBarBg->Draw();
     m_pHPBarFg->Draw();
     m_pHPText->Draw();
 
-    // Hit / Miss
+    // Hit / Miss / Kaihi
     if (m_JudgeTimer > 0.0f)
     {
-        if (m_ShowHit) m_pHitSprite->Draw();
-        else           m_pMissSprite->Draw();
+        if (m_CurrentJudge == JUDGE_KAIHI) m_pKaihiSprite->Draw();
+        else if (m_CurrentJudge == JUDGE_MISS || m_CurrentJudge == JUDGE_PASS_MISS) m_pMissSprite->Draw();
+        else m_pHitSprite->Draw();
     }
 
     // コンボ
@@ -182,6 +375,30 @@ void GameUI::Draw()
     for (int i = 0; i < COMBO_MAX_DIGITS; ++i)
     {
         m_pComboDigits[i]->Draw();
+    }
+
+    // 結果オーバーレイの描画
+    if (m_ShowEndOverlay)
+    {
+        if (m_pFadeOverlay) m_pFadeOverlay->Draw();
+
+        if (m_ShowLogos)
+        {
+            if (m_IsDead)
+            {
+                if (m_pGameOverSprite) m_pGameOverSprite->Draw();
+            }
+            else if (m_IsAllHit)
+            {
+                // All Hit の場合は AllHit と StageClear (ClearSprite) の両方を表示
+                if (m_pAllHitSprite) m_pAllHitSprite->Draw();
+                if (m_pClearSprite)  m_pClearSprite->Draw();
+            }
+            else
+            {
+                if (m_pClearSprite) m_pClearSprite->Draw();
+            }
+        }
     }
 }
 
@@ -200,4 +417,72 @@ void GameUI::Finalize()
     delete m_pHPText;    m_pHPText    = nullptr;
     delete m_pHitSprite; m_pHitSprite = nullptr;
     delete m_pMissSprite;m_pMissSprite= nullptr;
+    delete m_pKaihiSprite;m_pKaihiSprite= nullptr;
+
+    delete m_pFadeOverlay;   m_pFadeOverlay   = nullptr;
+    delete m_pClearSprite;   m_pClearSprite   = nullptr;
+    delete m_pAllHitSprite;  m_pAllHitSprite  = nullptr;
+    delete m_pGameOverSprite;m_pGameOverSprite= nullptr;
+
+    delete m_pWindCutSprite; m_pWindCutSprite = nullptr;
+
+    // SE解放
+    UnloadSound(m_pStageClearSe);  m_pStageClearSe  = nullptr;
+    UnloadSound(m_pGameOverSe);    m_pGameOverSe    = nullptr;
+    UnloadSound(m_pAllHitSe);      m_pAllHitSe      = nullptr;
+}
+
+void GameUI::StartEndSequence(bool isDead, bool isAllHit)
+{
+    m_ShowEndOverlay = true;
+    m_ShowLogos      = false;
+    m_IsDead         = isDead;
+    m_IsAllHit       = isAllHit;
+    m_FadeTimer      = 0.0f;
+    if (m_pFadeOverlay)
+    {
+        m_pFadeOverlay->SetColor({ 0.0f, 0.0f, 0.0f, 0.0f });
+    }
+}
+
+void GameUI::ShowResultLogos()
+{
+    m_ShowLogos = true;
+    m_LogoAnimTimer = 0.0f; // アニメーションタイマーリセット
+    m_FadeTimer = m_FadeDuration; // フェードを強制完了状態にする
+    if (m_pFadeOverlay)
+    {
+        m_pFadeOverlay->SetColor({ 0.0f, 0.0f, 0.0f, 0.5f });
+    }
+
+    // クリア表示の瞬間に適切なSEを再生
+    if (m_IsDead)
+    {
+        if (m_pGameOverSe) PlaySound(m_pGameOverSe, false);
+    }
+    else if (m_IsAllHit)
+    {
+        if (m_pAllHitSe) PlaySound(m_pAllHitSe, false);
+    }
+    else
+    {
+        if (m_pStageClearSe) PlaySound(m_pStageClearSe, false);
+    }
+
+    // 初期状態を透明＆縮小状態に設定してアニメーション開始に備える
+    if (m_pClearSprite)
+    {
+        m_pClearSprite->SetColor({ 1.0f, 1.0f, 1.0f, 0.0f });
+        m_pClearSprite->SetSize({ 0.0f, 0.0f });
+    }
+    if (m_pAllHitSprite)
+    {
+        m_pAllHitSprite->SetColor({ 1.0f, 1.0f, 1.0f, 0.0f });
+        m_pAllHitSprite->SetSize({ 0.0f, 0.0f });
+    }
+    if (m_pGameOverSprite)
+    {
+        m_pGameOverSprite->SetColor({ 1.0f, 1.0f, 1.0f, 0.0f });
+        m_pGameOverSprite->SetSize({ 0.0f, 0.0f });
+    }
 }

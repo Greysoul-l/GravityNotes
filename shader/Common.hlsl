@@ -74,6 +74,13 @@ cbuffer CameraBuffer : register(b5)
 	float4 CameraPosition;
 };
 
+//3点照明(PBR専用)。キー/フィル/リムの3灯。
+#define NUM_PLAYER_LIGHTS 3
+cbuffer PlayerLightBuffer : register(b7)
+{
+	LIGHT PlayerLights[NUM_PLAYER_LIGHTS];
+};
+
 //汎用パラメーター
 cbuffer ParameterBuffer : register(b6)
 {

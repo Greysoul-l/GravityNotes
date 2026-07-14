@@ -30,7 +30,9 @@
 #include "../framework/imgui/imgui.h"
 #include "../framework/imgui/imgui_impl_win32.h"
 #include "../framework/imgui/imgui_impl_dx11.h"
+#include "../options_manager.h"
 extern IMGUI_IMPL_API LRESULT ImGui_ImplWin32_WndProcHandler(HWND hWnd, UINT msg, WPARAM wParam,
+
 	LPARAM lParam);
 
 
@@ -106,6 +108,7 @@ int APIENTRY WinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance,
 	wc.lpfnWndProc = WndProc;//初期化
 	wc.lpszClassName = CLASS_NAME;//仕様書の名前
 	wc.hInstance = hInstance;//このアプリのこと
+	wc.hIcon = LoadIcon(hInstance, L"IDI_ICON1");
 	wc.hCursor = LoadCursor(NULL, IDC_ARROW);//cursorの種類
 	wc.hbrBackground = (HBRUSH)(COLOR_BACKGROUND);//背景色
 	RegisterClass(&wc);//構構体をwindowsにセット
@@ -180,14 +183,15 @@ int APIENTRY WinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance,
 
 	Keyboard_Initialize();
 	Mouse_Initialize(hWnd);
+	InitSound();
 	Input_Initialize();
 	InputMonitorConsole_Initialize();
 	InitShader();
 	Font_InitializeGlobalData();
 	Sprite_Initialize();
 	Fade_Initialize();
-	InitSound();
 	Gamepad_Initialize();
+	Options_Initialize();
 
 	Init();
 
@@ -238,18 +242,18 @@ int APIENTRY WinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance,
 
 				if(pad<0) pad = Gamepad_FindConnectedPlayer();
 
-				// ウィンドウ操作（論理ステップ内で判定：keycopy後に正しいトリガーを参照できる）
-				// Alt+Enterで全画面切り替え
-				if (Keyboard_IsKeyDown(KK_LEFTALT) || Keyboard_IsKeyDown(KK_RIGHTALT))
-				{
-					if (Keyboard_IsKeyDownTrigger(KK_ENTER))
-					{
-						// 全画面切り替え処理
-						static bool isFullScreen = false;
-						isFullScreen = !isFullScreen;
-						IDXGISwapChain* pSwapChain = nullptr;
-					}
-				}
+				//// ウィンドウ操作（論理ステップ内で判定：keycopy後に正しいトリガーを参照できる）
+				//// Alt+Enterで全画面切り替え
+				//if (Keyboard_IsKeyDown(KK_LEFTALT) || Keyboard_IsKeyDown(KK_RIGHTALT))
+				//{
+				//	if (Keyboard_IsKeyDownTrigger(KK_ENTER))
+				//	{
+				//		// 全画面切り替え処理
+				//		static bool isFullScreen = false;
+				//		isFullScreen = !isFullScreen;
+				//		IDXGISwapChain* pSwapChain = nullptr;
+				//	}
+				//}
 
 				// F11キーでボーダレスウィンドウ切り替え
 				if (Keyboard_IsKeyDownTrigger(KK_F11))

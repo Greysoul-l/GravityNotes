@@ -26,6 +26,7 @@ public:
 
 	void Update(void);
 	void Draw(void);
+	void DrawShadowMap(const XMMATRIX& lightView, const XMMATRIX& lightProjection);
 
 	// --- 便利機能 ---
 

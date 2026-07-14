@@ -20,7 +20,7 @@ typedef enum Input_Action_tag
     INPUT_ACTION_GRAVITY_DOWN,      // 重力移動床 (DOWN, RStick-DOWN)
     INPUT_ACTION_GRAVITY_LEFT,      // 重力移動左壁 (LEFT, RStick-LEFT)
     INPUT_ACTION_GRAVITY_RIGHT,     // 重力移動右壁 (RIGHT, RStick-RIGHT)
-    INPUT_ACTION_DEBUG_RESULT,      // デバッグ用強制リザルト遷移 (F1キー)
+    INPUT_ACTION_DEBUG_F1,          // デバッグ用強制リスタート (F1キー)
 } Input_Action;
 
 typedef struct Input_Vector2_tag

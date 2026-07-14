@@ -10,6 +10,7 @@ struct SendResult
 	int misses;			//Miss数
 	int orbgets;		//オーブ獲得
 	int orblosses;		//オーブ逃し
+	int fullCombo;		//フルコンボ時の総コンボ（判定）数
 };
 
 enum SCENE {

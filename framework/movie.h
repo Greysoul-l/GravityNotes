@@ -11,11 +11,12 @@ struct IMFMediaEngine;
 class Movie : public Transform2D
 {
 public:
-    Movie(const XMFLOAT2& pos, float width, float rotation, const XMFLOAT4& color, BLENDSTATE bstate, const wchar_t* filePath);
+    Movie(const XMFLOAT2& pos, float width, float rotation, const XMFLOAT4& color, BLENDSTATE bstate, const wchar_t* filePath, bool useChromaKey = false, bool loop = true, bool autoPlay = true);
     ~Movie();
 
     void Update();
     void Draw();
+    void Play();
 
     ID3D11ShaderResourceView* GetShaderResourceView() const;
 
@@ -30,6 +31,8 @@ private:
     BLENDSTATE m_BlendState;
     SoundData* m_pAudio;
     bool m_AudioStarted;
+    bool m_useChromaKey;
+    bool m_Loop;
 
     IMFDXGIDeviceManager* m_pDXGIDeviceManager;
     struct IMFMediaEngine* m_pMediaEngine;

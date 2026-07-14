@@ -21,11 +21,16 @@ static void SafeReleaseCOM(T*& p)
 class Movie::MediaEngineNotify : public IMFMediaEngineNotify
 {
 public:
-    MediaEngineNotify() : m_refCount(1), m_canPlay(false), m_pEngine(nullptr) {}
+    MediaEngineNotify() : m_refCount(1), m_canPlay(false), m_pEngine(nullptr), m_autoPlay(true) {}
 
     void SetEngine(IMFMediaEngine* pEngine)
     {
         m_pEngine = pEngine;
+    }
+
+    void SetAutoPlay(bool autoPlay)
+    {
+        m_autoPlay = autoPlay;
     }
 
     bool CanPlay() const
@@ -66,7 +71,7 @@ public:
         if (meEvent == MF_MEDIA_ENGINE_EVENT_CANPLAY)
         {
             m_canPlay = true;
-            if (m_pEngine)
+            if (m_pEngine && m_autoPlay)
             {
                 m_pEngine->Play();
             }
@@ -79,6 +84,7 @@ private:
     LONG m_refCount;
     bool m_canPlay;
     IMFMediaEngine* m_pEngine;
+    bool m_autoPlay;
 };
 
 static std::wstring MakeFileUrl(const wchar_t* relativePath)
@@ -99,7 +105,7 @@ static std::wstring MakeFileUrl(const wchar_t* relativePath)
     return url;
 }
 
-Movie::Movie(const XMFLOAT2& pos, float width, float rotation, const XMFLOAT4& color, BLENDSTATE bstate, const wchar_t* filePath)
+Movie::Movie(const XMFLOAT2& pos, float width, float rotation, const XMFLOAT4& color, BLENDSTATE bstate, const wchar_t* filePath, bool useChromaKey, bool loop, bool autoPlay)
     : Transform2D(pos, rotation, XMFLOAT2(width, width)),
       m_Color(color),
       m_BlendState(bstate),
@@ -110,9 +116,15 @@ Movie::Movie(const XMFLOAT2& pos, float width, float rotation, const XMFLOAT4& c
       m_pMediaEngineNotify(nullptr),
       m_pVideoTexture(nullptr),
       m_pVideoSRV(nullptr),
-      m_DxgiResetToken(0)
+      m_DxgiResetToken(0),
+      m_useChromaKey(useChromaKey),
+      m_Loop(loop)
 {
     Initialize(filePath);
+    if (m_pMediaEngineNotify)
+    {
+        m_pMediaEngineNotify->SetAutoPlay(autoPlay);
+    }
 }
 
 Movie::~Movie()
@@ -223,7 +235,7 @@ bool Movie::Initialize(const wchar_t* filePath)
     }
 
     m_pMediaEngineNotify->SetEngine(m_pMediaEngine);
-    m_pMediaEngine->SetLoop(TRUE);
+    m_pMediaEngine->SetLoop(m_Loop ? TRUE : FALSE);
     m_pMediaEngine->SetMuted(TRUE);
 
     m_pAudio = LoadMP3(filePath);
@@ -258,13 +270,19 @@ void Movie::Update()
 {
     if (!m_pMediaEngine) return;
 
+    // 再生開始前（一時停止中）は更新処理を行わない
+    if (m_pMediaEngine->IsPaused()) return;
+
+    // 再生が終了している場合はテクスチャの更新処理を行わない（最終フレームを維持）
+    if (m_pMediaEngine->IsEnded()) return;
+
     if (!m_pMediaEngine->HasVideo()) return;
 
     if (m_pMediaEngine->GetReadyState() < MF_MEDIA_ENGINE_READY_HAVE_CURRENT_DATA) return;
 
     if (!m_AudioStarted && m_pAudio)
     {
-        PlaySound(m_pAudio, true);
+        PlaySound(m_pAudio, m_Loop);
         m_AudioStarted = true;
     }
 
@@ -350,7 +368,9 @@ void Movie::Draw()
             m_Rotation,
             m_Color,
             m_BlendState,
-            m_pVideoSRV
+            m_pVideoSRV,
+            FLIPTYPE2D::FLIPTYPE2D_NONE,
+            m_useChromaKey ? S_CHROMAKEY : S_UNLIT
         );
     }
 }
@@ -358,4 +378,15 @@ void Movie::Draw()
 ID3D11ShaderResourceView* Movie::GetShaderResourceView() const
 {
     return m_pVideoSRV;
+}
+
+void Movie::Play()
+{
+    if (m_pMediaEngine)
+    {
+        if (m_pMediaEngine->IsPaused())
+        {
+            m_pMediaEngine->Play();
+        }
+    }
 }

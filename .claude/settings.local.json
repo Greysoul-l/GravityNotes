@@ -2,7 +2,8 @@
   "permissions": {
     "allow": [
       "Bash(grep -E \"\\\\.\\(cpp|h\\)$\")",
-      "Skill(update-config)"
+      "Skill(update-config)",
+      "PowerShell(Add-Type -AssemblyName System.Drawing; $img = [System.Drawing.Image]::FromFile\\(\"C:\\\\Users\\\\ths41221\\\\Documents\\\\GitHub\\\\GravityNotes\\\\asset\\\\texture\\\\OrbAnimationSpriteSheetRed.png\"\\); \"$\\($img.Width\\) x $\\($img.Height\\)\"; $img.Dispose\\(\\))"
     ]
   }
 }

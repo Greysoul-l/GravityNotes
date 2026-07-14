@@ -203,7 +203,15 @@ void Billboard::Draw(void)
 	if (!m_VertexBuffer || !m_Texture) return;
 
 	SetBlendState(BLENDSTATE_ALFA);
-	SetDepthEnable(!m_WallFadeEnabled); // 壁越し透過無効ならデプステスト有効
+	if (!m_WallFadeEnabled)
+	{
+		SetDepthEnable(true);
+		SetDepthWriteEnable(false); // 半透明なのでデプス書き込みは無効にする
+	}
+	else
+	{
+		SetDepthEnable(false);
+	}
 
 	XMMATRIX view = GetCamera()->GetView();
 	XMMATRIX proj = GetCamera()->GetProjection();
@@ -263,5 +271,45 @@ void Billboard::Draw(void)
 	// 次に描く別のシェーダーへNormalMapが残らないよう、t2だけ外しておく。
 	ID3D11ShaderResourceView* nullSRV = nullptr;
 	context->PSSetShaderResources(2, 1, &nullSRV);
+	SetDepthWriteEnable(true); // デプス書き込みを元に戻す
 	SetDepthEnable(true); // 常に戻す
+}
+
+void Billboard::DrawShadowMap(const XMMATRIX& lightView, const XMMATRIX& lightProjection)
+{
+	if (!m_VertexBuffer || !m_Texture) return;
+
+	// シャドーカメラへ正対させ、スプライトのアルファ形状だけを深度へ書き込む。
+	XMVECTOR det;
+	XMMATRIX invLightView = XMMatrixInverse(&det, lightView);
+	invLightView.r[3] = XMVectorSet(0.0f, 0.0f, 0.0f, 1.0f);
+	XMMATRIX world =
+		XMMatrixScaling(m_Size.x, m_Size.y, 1.0f) *
+		XMMatrixRotationZ(XMConvertToRadians(m_Rot.z)) *
+		invLightView *
+		XMMatrixTranslation(m_Pos.x, m_Pos.y, m_Pos.z);
+
+	SetWorldMatrix(world);
+	SetViewMatrix(lightView);
+	SetProjectionMatrix(lightProjection);
+	SetBlendState(BLENDSTATE_NONE);
+	// BeginFaceShadowMap() が設定した影用ビューポートを維持する。
+	// SetDepthEnable(true) は通常画面の3Dビューポートへ戻すため、ここでは呼ばない。
+	SetDepthWriteEnable(true);
+	// 面ごとのライト方向で頂点の表裏が反転しても、Orbの影を欠落させない。
+	SetCullState(CULLSTATE_NONE);
+
+	ID3D11DeviceContext* context = GetDeviceContext();
+	ShaderManager* shader = GetShader(S_BILLBOARD_SHADOW_MAP);
+	context->IASetInputLayout(shader->GetVertexLayout());
+	context->VSSetShader(shader->GetVertexShader(), nullptr, 0);
+	context->PSSetShader(shader->GetPixelShader(), nullptr, 0);
+
+	UINT stride = sizeof(BILLBOARD_VERTEX);
+	UINT offset = 0;
+	context->IASetVertexBuffers(0, 1, &m_VertexBuffer, &stride, &offset);
+	context->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
+	context->PSSetShaderResources(0, 1, &m_Texture);
+	context->Draw(m_VertexCount, 0);
+	SetCullState(CULLSTATE_BACK);
 }

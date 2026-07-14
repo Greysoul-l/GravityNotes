@@ -67,3 +67,28 @@ void NoteBase::OnMiss()
 {
 	m_IsActive = false;
 }
+
+bool IsCornerAdjacent(int lane1, int face1, int lane2, int face2)
+{
+	static const int pairs[4][4] = {
+		// { faceA, laneA, faceB, laneB }
+		{ 0, -1, 1, -1 }, // Floor LANE_LEFT  <-> LeftWall  LANE_LEFT
+		{ 0,  1, 3, -1 }, // Floor LANE_RIGHT <-> RightWall LANE_LEFT
+		{ 2, -1, 1,  1 }, // Ceiling LANE_LEFT  <-> LeftWall  LANE_RIGHT
+		{ 2,  1, 3,  1 }, // Ceiling LANE_RIGHT <-> RightWall LANE_RIGHT
+	};
+
+	for (const auto& p : pairs)
+	{
+		if ((face1 == p[0] && lane1 == p[1] && face2 == p[2] && lane2 == p[3]) ||
+			(face1 == p[2] && lane1 == p[3] && face2 == p[0] && lane2 == p[1]))
+			return true;
+	}
+	return false;
+}
+
+bool IsSameOrCornerPosition(int lane1, int face1, int lane2, int face2)
+{
+	if (lane1 == lane2 && face1 == face2) return true;
+	return IsCornerAdjacent(lane1, face1, lane2, face2);
+}

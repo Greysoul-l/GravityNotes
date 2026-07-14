@@ -60,7 +60,7 @@ static FontRenderer* g_pControlHintFont = nullptr;
 
 // 床描画用
 static Billboard* g_pFloorBillboard = nullptr;
-static AnimSprite3D* g_pKirbyAnim = nullptr;
+//static AnimSprite3D* g_pKirbyAnim = nullptr;
 
 // 配置パラメータ
 static const float MODEL_SPACING = 5.0f;  // モデル同士の間隔
@@ -118,30 +118,30 @@ static int GetTriggeredAnimationSlot()
 
 static void TryPlayKirbyAnimationFromKey()
 {
-	if (!g_pKirbyAnim)
-	{
-		return;
-	}
+	////if (!g_pKirbyAnim)
+	////{
+	////	return;
+	////}
 
-	int animSlot = GetTriggeredAnimationSlot();
-	if (animSlot < 0)
-	{
-		return;
-	}
+	//int animSlot = GetTriggeredAnimationSlot();
+	//if (animSlot < 0)
+	//{
+	//	return;
+	//}
 
-	unsigned int animCount = g_pKirbyAnim->GetAnimationCount();
-	if ((unsigned int)animSlot >= animCount)
-	{
-		return;
-	}
+	//unsigned int animCount = g_pKirbyAnim->GetAnimationCount();
+	//if ((unsigned int)animSlot >= animCount)
+	//{
+	//	return;
+	//}
 
-	if (g_pKirbyAnim->PlayAnimationByIndex((unsigned int)animSlot, true))
-	{
-		g_pKirbyAnim->UpdateAnimation(0.0f);
-		const char* animName = g_pKirbyAnim->GetAnimationName((unsigned int)animSlot);
-		hal::dout << "[DebugModelScene] Play kirby animation index=" << animSlot
-			<< " name=" << (animName ? animName : "<noname>") << std::endl;
-	}
+	//if (g_pKirbyAnim->PlayAnimationByIndex((unsigned int)animSlot, true))
+	//{
+	//	g_pKirbyAnim->UpdateAnimation(0.0f);
+	//	const char* animName = g_pKirbyAnim->GetAnimationName((unsigned int)animSlot);
+	//	hal::dout << "[DebugModelScene] Play kirby animation index=" << animSlot
+	//		<< " name=" << (animName ? animName : "<noname>") << std::endl;
+	//}
 }
 
 // ======================================================
@@ -239,12 +239,13 @@ void DebugModelScene_Initialize(void)
 	);
 
 	// 床用バッファ・テクスチャの作成
-	g_pFloorBillboard = new Billboard(XMFLOAT3(0.0f, -0.5f, 0.0f), XMFLOAT2(1.0f, 1.0f), XMFLOAT3(90.0f, 0.0f, 0.0f), "asset\\texture\\cement.jpg", false);
+	g_pFloorBillboard = new Billboard(XMFLOAT3(0.0f, -0.5f, 0.0f), XMFLOAT2(1.0f, 1.0f), XMFLOAT3(90.0f, 0.0f, 0.0f), "asset\\texture\\notfound_thumbnail.png", false);
 	g_pFloorBillboard->SetBillboardMode(false);
 	// 床だけShadowReceiveシェーダーを使い、ShadowMapから影を受け取る。
 	g_pFloorBillboard->SetReceiveShadow(true);
 	// NormalMapのテスト。床の法線をピクセルごとに変えて、ライトの当たり方に凹凸を出す。
-	g_pFloorBillboard->SetNormalMap("asset\\texture\\Normal.png");
+	// Normal.pngは負荷軽減のため削除
+	//g_pFloorBillboard->SetNormalMap("");
 
 	// 原点表示用キューブモデルの読み込み
 	g_pCubeModel = ModelLoad("asset\\model\\cube.fbx");
@@ -255,18 +256,18 @@ void DebugModelScene_Initialize(void)
 		g_AnimationKeyHeld[i] = false;
 	}
 
-	g_pKirbyAnim = new AnimSprite3D(
-		{ 0.0f, -6.0f, 0.0f },
-		{ 1.0f, 1.0f, 1.0f },
-		{ 0.0f, 180.0f, 0.0f },
-		"asset\\model\\kirbyanim.fbx",
-		S_PHONG
-	);
-	if (g_pKirbyAnim)
-	{
-		g_pKirbyAnim->SetAnimationBlendDuration(0.2);
-		hal::dout << "[DebugModelScene] kirbyanim loaded. animationCount=" << g_pKirbyAnim->GetAnimationCount() << std::endl;
-	}
+	//g_pKirbyAnim = new AnimSprite3D(
+	//	{ 0.0f, -6.0f, 0.0f },
+	//	{ 1.0f, 1.0f, 1.0f },
+	//	{ 0.0f, 180.0f, 0.0f },
+	//	"asset\\model\\kirbyanim.fbx",
+	//	S_PHONG
+	//);
+	//if (g_pKirbyAnim)
+	//{
+	//	g_pKirbyAnim->SetAnimationBlendDuration(0.2);
+	//	hal::dout << "[DebugModelScene] kirbyanim loaded. animationCount=" << g_pKirbyAnim->GetAnimationCount() << std::endl;
+	//}
 
 	// モデル列挙
 	EnumerateModels();
@@ -330,11 +331,11 @@ void DebugModelScene_Update(void)
 		ReloadAllModels();
 	}
 
-	TryPlayKirbyAnimationFromKey();
-	if (g_pKirbyAnim)
-	{
-		g_pKirbyAnim->UpdateAnimation(1.0f / 60.0f);
-	}
+	//TryPlayKirbyAnimationFromKey();
+	//if (g_pKirbyAnim)
+	//{
+	//	g_pKirbyAnim->UpdateAnimation(1.0f / 60.0f);
+	//}
 
 	// プレイヤー(カメラ)の更新
 	DebugCamera_Update();
@@ -482,10 +483,10 @@ void DebugModelScene_Draw(void)
 		}
 	}
 
-	if (g_pKirbyAnim)
-	{
-		g_pKirbyAnim->Draw();
-	}
+	//if (g_pKirbyAnim)
+	//{
+	//	g_pKirbyAnim->Draw();
+	//}
 
 	// 原点キューブ描画
 	if (g_ShowOriginCubes && g_pCubeModel)
@@ -543,7 +544,7 @@ void DebugModelScene_Finalize(void)
 
 	// 床リソース解放
 	if (g_pFloorBillboard) { delete g_pFloorBillboard; g_pFloorBillboard = nullptr; }
-	if (g_pKirbyAnim) { delete g_pKirbyAnim; g_pKirbyAnim = nullptr; }
+	//if (g_pKirbyAnim) { delete g_pKirbyAnim; g_pKirbyAnim = nullptr; }
 
 	if (g_pModelNameFont) { delete g_pModelNameFont;   g_pModelNameFont = nullptr; }
 	if (g_pSubInfoFont) { delete g_pSubInfoFont;     g_pSubInfoFont = nullptr; }

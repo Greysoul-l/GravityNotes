@@ -5,7 +5,8 @@
 class Field: public Sprite3D
 {
 private:
-	static constexpr int NUM_FIELDS = 16;
+	static constexpr int NUM_FIELDS = 20;
+	static constexpr float SHADOW_LOD_NEAR = 30.0f; // 影を描画するLOD閾値
 	float m_ScrollPos[NUM_FIELDS];
 	MODEL* m_FieldModels[NUM_FIELDS];
 

@@ -5,6 +5,7 @@
 #include "fade.h"
 
 #include "gamecamera.h"
+#include "debug_params.h"
 
 GameCamera* GameCamera::s_Instance=nullptr;
 
@@ -14,15 +15,24 @@ void GameCamera::Init() {
 	s_Instance = new GameCamera();
 	Camera_Initialize();
 	LockMouse();
-	s_Instance->m_Pos = { 0.0f,0.0f,0.0f };
+
+	// 初期面（FLOOR）の目標位置・角度を取得して即座に適用
+	auto& p = D_PARAMS;
+	s_Instance->m_Pos = {
+		0.0f + p.cameraOffsets[0].posX,
+		0.0f + p.cameraOffsets[0].posY,
+		-8.0f + p.cameraOffsets[0].posZ
+	};
 	s_Instance->m_yaw = 0.0f;
 	s_Instance->m_pitch = 0.0f;
 
 	// カメラ角度の補間設定を初期化
-	s_Instance->m_CurrentYaw = 0.0f;
-	s_Instance->m_CurrentPitch = 15.0f; // 初期は少し上から見下ろす角度
-	s_Instance->m_TargetYaw = 0.0f;
-	s_Instance->m_TargetPitch = 15.0f;
+	float initialYaw = 0.0f + p.cameraOffsets[0].yaw;
+	float initialPitch = 0.0f + p.cameraOffsets[0].pitch;
+	s_Instance->m_CurrentYaw = initialYaw;
+	s_Instance->m_CurrentPitch = initialPitch;
+	s_Instance->m_TargetYaw = initialYaw;
+	s_Instance->m_TargetPitch = initialPitch;
 	s_Instance->m_AngleLerpSpeed = 0.05f; // ゆっくり補間（値が小さいほど滑らか）
 
 	cameraIndex = true;
@@ -97,8 +107,18 @@ void GameCamera::Update(Player* player) {
 		s_Instance->m_CurrentYaw += (s_Instance->m_TargetYaw - s_Instance->m_CurrentYaw) * s_Instance->m_AngleLerpSpeed;
 		s_Instance->m_CurrentPitch += (s_Instance->m_TargetPitch - s_Instance->m_CurrentPitch) * s_Instance->m_AngleLerpSpeed;
 
-		// カメラ位置は固定（真ん中から少し後ろ）
-		s_Instance->m_Pos = { 0.0f, 0.0f, -8.0f };
+		// カメラ位置の補間先（真ん中から少し後ろ＋面ごとのオフセット）
+		auto& p = D_PARAMS;
+		XMFLOAT3 targetPos = {
+			0.0f + p.cameraOffsets[targetGravityFace].posX,
+			0.0f + p.cameraOffsets[targetGravityFace].posY,
+			-8.0f + p.cameraOffsets[targetGravityFace].posZ
+		};
+
+		// 位置もゆっくり補間
+		s_Instance->m_Pos.x += (targetPos.x - s_Instance->m_Pos.x) * s_Instance->m_AngleLerpSpeed;
+		s_Instance->m_Pos.y += (targetPos.y - s_Instance->m_Pos.y) * s_Instance->m_AngleLerpSpeed;
+		s_Instance->m_Pos.z += (targetPos.z - s_Instance->m_Pos.z) * s_Instance->m_AngleLerpSpeed;
 
 		// 固定された中央位置を基準に注視点を計算（プレイヤーの位置は使わない）
 		XMFLOAT3 centerPos = { 0.0f, 0.0f, 0.0f };
@@ -120,11 +140,6 @@ void GameCamera::Update(Player* player) {
 			GetCamera()->UpdateView(s_Instance->m_Pos, s_Instance->m_AtPos);
 		}
 	}
-
-	if (Keyboard_IsKeyDownTrigger(KK_ESCAPE))
-	{
-		SetSceneFade(SCENE_TITLE);
-	}
 }
 
 void GameCamera::Draw() {
@@ -137,31 +152,28 @@ void GameCamera::Finalize() {
 
 void GameCamera::UpdateCameraAngleByGravity(int gravityFace)
 {
-	// 重力面に応じてカメラを15度程度だけ傾ける
+	auto& p = D_PARAMS;
+	// すべての面でベースの角度は 0.0f とする
 	switch (gravityFace)
 	{
 	case FACE_FLOOR:
-		// 床にいるとき：少し上から見下ろす
-		m_TargetYaw = 0.0f;
-		m_TargetPitch = 15.0f;
+		m_TargetYaw = 0.0f + p.cameraOffsets[FACE_FLOOR].yaw;
+		m_TargetPitch = 0.0f + p.cameraOffsets[FACE_FLOOR].pitch;
 		break;
 
 	case FACE_CEILING:
-		// 天井にいるとき：少し下から見上げる
-		m_TargetYaw = 0.0f;
-		m_TargetPitch = -15.0f;
+		m_TargetYaw = 0.0f + p.cameraOffsets[FACE_CEILING].yaw;
+		m_TargetPitch = 0.0f + p.cameraOffsets[FACE_CEILING].pitch;
 		break;
 
 	case FACE_LEFT_WALL:
-		// 左壁にいるとき：左から見る（角度を大きく）
-		m_TargetYaw = -30.0f;
-		m_TargetPitch = 0.0f;
+		m_TargetYaw = 0.0f + p.cameraOffsets[FACE_LEFT_WALL].yaw;
+		m_TargetPitch = 0.0f + p.cameraOffsets[FACE_LEFT_WALL].pitch;
 		break;
 
 	case FACE_RIGHT_WALL:
-		// 右壁にいるとき：右から見る（角度を大きく）
-		m_TargetYaw = 30.0f;
-		m_TargetPitch = 0.0f;
+		m_TargetYaw = 0.0f + p.cameraOffsets[FACE_RIGHT_WALL].yaw;
+		m_TargetPitch = 0.0f + p.cameraOffsets[FACE_RIGHT_WALL].pitch;
 		break;
 	}
 }

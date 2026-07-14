@@ -57,7 +57,10 @@ jobs:
         if (Test-Path "shader/*.cso") {
             Copy-Item -Path "shader/*.cso" -Destination "release/shader" -Force
         }
-
+        
+        Copy-Item -Path "options.yml" -Destination "release" -Force
+        Copy-Item -Path "readme.md" -Destination "release" -Force
+        Copy-Item -Path "markdown/copylight.md" -Destination "release" -Force
         Copy-Item -Path "x64/Release/*.dll" -Destination "release" -Force 
         Copy-Item -Path "assimp-vc143-mt.dll" -Destination "release" -Force 
         Copy-Item -Path "asset" -Destination "release" -Recurse -Force

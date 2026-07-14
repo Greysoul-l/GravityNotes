@@ -1,6 +1,7 @@
 ﻿#include "input_manager.h"
 
 #include "keyboard.h"
+#include "sound.h"
 
 namespace
 {
@@ -28,6 +29,9 @@ namespace
     bool g_LTriggerTrigger = false;
     bool g_RTriggerTrigger = false;
 
+    SoundData* g_pDecideSe = nullptr;
+    SoundData* g_pMenuMoveSe = nullptr;
+
     int GetActivePlayerIndex()
     {
         return Gamepad_FindConnectedPlayer();
@@ -48,11 +52,17 @@ void Input_Initialize(void)
 {
     Gamepad_Initialize();
     Gamepad_SetLayout(GAMEPAD_LAYOUT_SWITCH_ABXY);
+
+    g_pDecideSe = LoadMP3("asset/sound/se/kettei.mp3");
+    g_pMenuMoveSe = LoadMP3("asset/sound/se/musicMove.mp3");
 }
 
 void Input_Finalize(void)
 {
     Gamepad_Finalize();
+
+    UnloadSound(g_pDecideSe);   g_pDecideSe = nullptr;
+    UnloadSound(g_pMenuMoveSe); g_pMenuMoveSe = nullptr;
 }
 
 void Input_Update(void)
@@ -126,7 +136,7 @@ bool Input_IsActionDown(Input_Action action)
         return Keyboard_IsKeyDown(KK_LEFT) || Input_GetLookVector().x < -kMoveStickThreshold;
     case INPUT_ACTION_GRAVITY_RIGHT:
         return Keyboard_IsKeyDown(KK_RIGHT) || Input_GetLookVector().x > kMoveStickThreshold;
-    case INPUT_ACTION_DEBUG_RESULT:
+    case INPUT_ACTION_DEBUG_F1:
         return Keyboard_IsKeyDown(KK_F1);
     default:
         return false;
@@ -136,17 +146,33 @@ bool Input_IsActionDown(Input_Action action)
 bool Input_IsActionTrigger(Input_Action action)
 {
     const int player = GetActivePlayerIndex();
+    bool triggered = false;
 
     switch (action)
     {
     case INPUT_ACTION_DECIDE:
-        return Keyboard_IsKeyDownTrigger(KK_ENTER) || Keyboard_IsKeyDownTrigger(KK_SPACE) || Gamepad_IsButtonTrigger(player, GPB_A);
+        triggered = Keyboard_IsKeyDownTrigger(KK_ENTER) || Keyboard_IsKeyDownTrigger(KK_SPACE) || Gamepad_IsButtonTrigger(player, GPB_A);
+        if (triggered && g_pDecideSe)
+        {
+            PlaySound(g_pDecideSe, false);
+        }
+        return triggered;
     case INPUT_ACTION_CANCEL:
         return Keyboard_IsKeyDownTrigger(KK_BACK) || Gamepad_IsButtonTrigger(player, GPB_B);
     case INPUT_ACTION_MENU_UP:
-        return Keyboard_IsKeyDownTrigger(KK_UP) || Keyboard_IsKeyDownTrigger(KK_W) || Gamepad_IsButtonTrigger(player, GPB_DPAD_UP) || g_LStickTriggerUp;
+        triggered = Keyboard_IsKeyDownTrigger(KK_UP) || Keyboard_IsKeyDownTrigger(KK_W) || Gamepad_IsButtonTrigger(player, GPB_DPAD_UP) || g_LStickTriggerUp;
+        if (triggered && g_pMenuMoveSe)
+        {
+            PlaySound(g_pMenuMoveSe, false);
+        }
+        return triggered;
     case INPUT_ACTION_MENU_DOWN:
-        return Keyboard_IsKeyDownTrigger(KK_DOWN) || Keyboard_IsKeyDownTrigger(KK_S) || Gamepad_IsButtonTrigger(player, GPB_DPAD_DOWN) || g_LStickTriggerDown;
+        triggered = Keyboard_IsKeyDownTrigger(KK_DOWN) || Keyboard_IsKeyDownTrigger(KK_S) || Gamepad_IsButtonTrigger(player, GPB_DPAD_DOWN) || g_LStickTriggerDown;
+        if (triggered && g_pMenuMoveSe)
+        {
+            PlaySound(g_pMenuMoveSe, false);
+        }
+        return triggered;
     case INPUT_ACTION_MENU_LEFT:
         return Keyboard_IsKeyDownTrigger(KK_LEFT) || Keyboard_IsKeyDownTrigger(KK_A) || Gamepad_IsButtonTrigger(player, GPB_DPAD_LEFT) || g_LStickTriggerLeft;
     case INPUT_ACTION_MENU_RIGHT:
@@ -171,7 +197,7 @@ bool Input_IsActionTrigger(Input_Action action)
         return Keyboard_IsKeyDownTrigger(KK_LEFT) || g_RStickTriggerLeft;
     case INPUT_ACTION_GRAVITY_RIGHT:
         return Keyboard_IsKeyDownTrigger(KK_RIGHT) || g_RStickTriggerRight;
-    case INPUT_ACTION_DEBUG_RESULT:
+    case INPUT_ACTION_DEBUG_F1:
         return Keyboard_IsKeyDownTrigger(KK_F1);
     default:
         return false;

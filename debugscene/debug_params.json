@@ -1,0 +1,18 @@
+{
+    "baseScore": 100,
+    "comboMultiplier": 0.10000000149011612,
+    "damageFlashColor": [
+        1.0,
+        0.10000000149011612,
+        0.10000000149011612,
+        1.0
+    ],
+    "damageFlashDuration": 0.699999988079071,
+    "damageFlashInterval": 0.07999999821186066,
+    "gravityTransTime": 0.30000001192092896,
+    "hitDistance": 2.0,
+    "laneWidth": 2.0,
+    "noteSpeed": 15.0,
+    "orbHealAmount": 30,
+    "orbJudgeWindow": -0.5
+}

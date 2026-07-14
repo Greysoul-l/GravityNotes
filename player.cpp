@@ -7,6 +7,18 @@
 #include "status_manager.h"
 #include "player.h"
 #include "rainbow_note.h"
+#include "sound.h"
+#include "debug_params.h"
+
+namespace
+{
+	float NormalizeAngleDelta(float angle)
+	{
+		while (angle > 180.0f) angle -= 360.0f;
+		while (angle < -180.0f) angle += 360.0f;
+		return angle;
+	}
+}
 
 void Player::Init(NoteManager* nm, StatusManager* sm)
 {
@@ -24,6 +36,7 @@ void Player::Init(NoteManager* nm, StatusManager* sm)
 	m_IsGravityMoving = false;
 	m_GravityTimer = 0.0f;
 	m_GravityDuration = 0.3f;
+	m_WasHoldingRope = false;
 
 	m_Position = { 0.0f,-2.5f,0.0f };
 	m_StartPos = m_Position;
@@ -34,6 +47,8 @@ void Player::Init(NoteManager* nm, StatusManager* sm)
 
 	m_IsEffectSlashActive = false;
 	m_IsOverridePlaying = false;
+	m_DamageFlashRemaining = 0.0f;
+	m_DamageFlashElapsed = 0.0f;
 	m_pEffectSlash = new SplitBilBoard(
 		4, 4,
 		{ 0.0f, 0.5f, 0.0f },
@@ -51,41 +66,80 @@ void Player::Init(NoteManager* nm, StatusManager* sm)
 		m_pEffectSlash->SetBillboardMode(false);
 	}
 
+	// キャラクター用3点照明の初期化
+	m_ThreePointLight.Init();
+
 	SetAnimationBlendDuration(0.2);
 	if (GetAnimationCount() > 0)
 	{
 		PlayAnimationByIndex(0, true);
 		UpdateAnimation(dt);
 	}
+
+	m_pSwordSe = LoadMP3("asset/sound/se/sword.mp3");
+	m_pEnemyHitSe = LoadMP3("asset/sound/se/enemyHit.wav");
+	m_pKaihiSe = LoadMP3("asset/sound/se/kaihi.wav");
 }
 
-//仮置き
-static int GetTriggeredAnimationSlot()
+void Player::Reset()
 {
-	/*static const Keyboard_Keys keys[] = {
-		KK_D5,
-		KK_D6,
-		KK_D7,
-		KK_D8,
-		KK_D9,
-		KK_D0,
-	};
+	m_GravityFace = FACE::FACE_FLOOR;
+	m_LaneIndex = LANE_CENTER;
+	m_TargetLaneIndex = LANE_CENTER;
+	m_IsMoving = false;
+	m_MoveTimer = 0.0f;
 
-	for (int i = 0; i < (int)ARRAYSIZE(keys); i++)
+	m_IsGravityMoving = false;
+	m_GravityTimer = 0.0f;
+	m_WasHoldingRope = false;
+
+	m_Position = { 0.0f,-2.5f,0.0f };
+	m_StartPos = m_Position;
+	m_TargetPos = m_Position;
+	m_Rotation = { 0.0f,180.0f,0.0f };
+	m_GravityStartPos = m_Position;
+	m_GravityStartRot = m_Rotation;
+
+	m_IsEffectSlashActive = false;
+	m_IsOverridePlaying = false;
+	m_DamageFlashRemaining = 0.0f;
+	m_DamageFlashElapsed = 0.0f;
+	if (m_pEffectSlash)
 	{
-		if (Keyboard_IsKeyDownTrigger(keys[i]))
-		{
-			return i;
-		}
-	}*/
-
-	return -1;
+		m_pEffectSlash->SetAnimationEnabled(false);
+	}
 }
-
 
 void Player::Update()
 {
 	// pad変数とGetGamePad()は不要になったため削除しました
+	if (m_DamageFlashRemaining > 0.0f)
+	{
+		m_DamageFlashRemaining -= dt;
+		m_DamageFlashElapsed += dt;
+		if (m_DamageFlashRemaining <= 0.0f)
+		{
+			m_DamageFlashRemaining = 0.0f;
+			m_DamageFlashElapsed = 0.0f;
+		}
+	}
+
+	auto processJudge = [this](JUDGE result, bool isHold)
+	{
+		if (result == JUDGE_NONE)
+			return;
+
+		if (isHold)
+			m_pStatusManager->OnJudgeHold(result);
+		else
+			m_pStatusManager->OnJudge(result);
+
+		if (result == JUDGE_MISS)
+		{
+			m_DamageFlashRemaining = D_PARAMS.damageFlashDuration;
+			m_DamageFlashElapsed = 0.0f;
+		}
+	};
 
 	RopeHoldNote* holdingRope = m_pNoteManager->GetHoldingRope();
 
@@ -109,13 +163,31 @@ void Player::Update()
 		// 開始面から終了面へ回転を補間
 		float rotStart = CalcFaceTargetRot(startFace).z;
 		float rotEnd   = CalcFaceTargetRot(endFace).z;
-		float diff = rotEnd - rotStart;
-		while (diff >  180.0f) diff -= 360.0f;
-		while (diff < -180.0f) diff += 360.0f;
+		float diff = NormalizeAngleDelta(rotEnd - rotStart);
 		m_Rotation.z = rotStart + diff * t;
 	}
 	else
 	{
+		if (m_WasHoldingRope)
+		{
+			m_TargetFace      = m_GravityFace;
+			m_LaneIndex       = LANE_CENTER;
+			m_TargetLaneIndex = LANE_CENTER;
+
+			m_GravityStartPos = m_Position;
+			m_GravityStartRot = m_Rotation;
+			m_TargetPos       = CalcFaceTargetPos(m_GravityFace, m_LaneIndex);
+			m_TargetRot       = CalcFaceTargetRot(m_GravityFace);
+
+			// 回転を最短経路で補間するため差分を[-180, 180]に正規化
+			float diff = NormalizeAngleDelta(m_TargetRot.z - m_GravityStartRot.z);
+			m_TargetRot.z = m_GravityStartRot.z + diff;
+
+			m_GravityTimer    = 0.0f;
+			m_IsGravityMoving = true;
+			m_IsMoving        = false; // 通常移動はキャンセル
+		}
+
 		//lane移動入力
 		if (m_GravityFace == FACE::FACE_FLOOR || m_GravityFace == FACE::FACE_CEILING)
 		{
@@ -177,17 +249,7 @@ void Player::Update()
 			m_Position.y = m_GravityStartPos.y + (m_TargetPos.y - m_GravityStartPos.y) * eased;
 			m_Rotation.z = m_GravityStartRot.z + (m_TargetRot.z - m_GravityStartRot.z) * eased;
 		}
-	}
 
-	int animSlot = GetTriggeredAnimationSlot();
-	unsigned int animCount = GetAnimationCount();
-
-	if (animSlot >= 0 && (unsigned int)animSlot < animCount)
-	{
-		if (PlayAnimationByIndex((unsigned int)animSlot, true))
-		{
-			UpdateAnimation(dt);
-		}
 	}
 
 	UpdateAnimation(dt);
@@ -218,8 +280,8 @@ void Player::Update()
 	}
 
 	//ノーツヒット入力
-	bool isPressed  = !m_IsGravityMoving && Input_IsActionTrigger(INPUT_ACTION_ATTACK);
-	bool isHolding  = !m_IsGravityMoving && Input_IsActionDown(INPUT_ACTION_ATTACK);
+	bool isPressed  = Input_IsActionTrigger(INPUT_ACTION_ATTACK);
+	bool isHolding  = Input_IsActionDown(INPUT_ACTION_ATTACK);
 
 	if (isPressed)
 	{
@@ -271,37 +333,95 @@ void Player::Update()
 		}
 
 		// 押した瞬間（KeyTrigger）：Enemy・Hold(最初の一撃) 判定
-		JUDGE result = m_pNoteManager->Judge(m_LaneIndex, m_GravityFace);
-		if (result != JUDGE_NONE)
-			m_pStatusManager->OnJudge(result);
+		int judgeFace = m_IsGravityMoving ? m_TargetFace : m_GravityFace;
+		JUDGE result = m_pNoteManager->Judge(m_LaneIndex, judgeFace);
+		processJudge(result, false);
+
+		if (result == JUDGE_HIT)
+		{
+			if (m_pEnemyHitSe) PlaySound(m_pEnemyHitSe, false);
+		}
+		else
+		{
+			// 攻撃がヒットしなかった（空振った）時のみ sword 音を再生
+			if (m_pSwordSe)
+			{
+				PlaySound(m_pSwordSe, false, 0.25f);
+			}
+		}
 	}
 
 	if (isHolding)
 	{
 		// 押している間（KeyDown、トリガーの瞬間も含む）：
 		// HoldNote 継続判定 / RopeHoldNote の活性化・継続判定
-		JUDGE result = m_pNoteManager->JudgeHold(m_LaneIndex, m_GravityFace);
-		if (result != JUDGE_NONE)
-			m_pStatusManager->OnJudgeHold(result);
+		int judgeFace = m_IsGravityMoving ? m_TargetFace : m_GravityFace;
+		JUDGE result = m_pNoteManager->JudgeHold(m_LaneIndex, judgeFace);
+		processJudge(result, true);
+
+		if (result == JUDGE_HIT)
+		{
+			if (m_pEnemyHitSe) PlaySound(m_pEnemyHitSe, false);
+		}
 	}
 	else
 	{
 		// ボタンを離した瞬間：RopeHoldNote の途中離し判定
-		JUDGE result = m_pNoteManager->OnButtonRelease(m_LaneIndex, m_GravityFace);
-		if (result != JUDGE_NONE)
-			m_pStatusManager->OnJudge(result);
+		int judgeFace = m_IsGravityMoving ? m_TargetFace : m_GravityFace;
+		JUDGE result = m_pNoteManager->OnButtonRelease(m_LaneIndex, judgeFace);
+		processJudge(result, false);
 	}
 
 	// RopeHoldNote 完了など、非同期で積まれた判定を処理
 	while (m_pNoteManager->HasPendingJudge())
-		m_pStatusManager->OnJudge(m_pNoteManager->PopPendingJudge());
+		processJudge(m_pNoteManager->PopPendingJudge(), false);
 
+	// Orb: スコア・コンボは変化させずHP回復/取り逃し数のみ反映
+	while (m_pNoteManager->HasPendingOrbEvent())
+	{
+		ORB_EVENT ev = m_pNoteManager->PopPendingOrbEvent();
+		if (ev == ORB_EVENT_HIT)
+			m_pStatusManager->OnOrbHit();
+		else
+			m_pStatusManager->OnOrbMiss();
+	}
+
+	// Barrier: 回避イベント処理
+	while (m_pNoteManager->HasPendingBarrierEvent())
+	{
+		BARRIER_EVENT ev = m_pNoteManager->PopPendingBarrierEvent();
+		if (ev == BARRIER_EVENT_KAIHI)
+		{
+			if (m_pKaihiSe) PlaySound(m_pKaihiSe, false);
+		}
+	}
+
+	m_WasHoldingRope = (holdingRope != nullptr);
 }
 
 void Player::Draw()
 {
+	// プレイヤーを描く直前に3点照明を適用する。
+	// PBRシェーダー(S_PBR)のみが参照するため、Playerだけがこの照明で描かれる。
+	m_ThreePointLight.Apply(m_Position, m_Rotation);
+	const float flashInterval = (D_PARAMS.damageFlashInterval > 0.0f)
+		? D_PARAMS.damageFlashInterval
+		: dt;
+	const bool useDamageColor = m_DamageFlashRemaining > 0.0f &&
+		(static_cast<int>(m_DamageFlashElapsed / flashInterval) % 2 == 0);
+	if (useDamageColor)
+	{
+		const float* color = D_PARAMS.damageFlashColor;
+		SetMaterialOverrideColor({ color[0], color[1], color[2], color[3] });
+	}
+	else
+	{
+		ResetMaterialOverride();
+	}
+
 	UpdateBoneMatrices();
 	AnimSprite3D::Draw();
+	ResetMaterialOverride();
 
 	if (m_pEffectSlash && m_IsEffectSlashActive)
 	{
@@ -312,6 +432,10 @@ void Player::Draw()
 void Player::Finalize()
 {
 	SAFE_DELETE(m_pEffectSlash);
+
+	UnloadSound(m_pSwordSe);     m_pSwordSe = nullptr;
+	UnloadSound(m_pEnemyHitSe);  m_pEnemyHitSe = nullptr;
+	UnloadSound(m_pKaihiSe);     m_pKaihiSe = nullptr;
 }
 
 void Player::MoveLeft()
@@ -319,6 +443,9 @@ void Player::MoveLeft()
 	if (m_IsMoving || m_IsGravityMoving) return;
 	int newLane = Clamp(m_LaneIndex - 1, (int)LANE_LEFT, (int)LANE_RIGHT);
 	if (newLane == m_LaneIndex) return;
+
+	m_pNoteManager->CheckAndHitBarrier(m_LaneIndex, m_GravityFace, newLane, m_GravityFace);
+
 	m_TargetLaneIndex = newLane;
 	m_StartPos = m_Position;
 	m_TargetPos = CalcLaneTargetPos(m_TargetLaneIndex);
@@ -333,6 +460,9 @@ void Player::MoveRight()
 	if (m_IsMoving || m_IsGravityMoving) return;
 	int newLane = Clamp(m_LaneIndex + 1, (int)LANE_LEFT, (int)LANE_RIGHT);
 	if (newLane == m_LaneIndex) return;
+
+	m_pNoteManager->CheckAndHitBarrier(m_LaneIndex, m_GravityFace, newLane, m_GravityFace);
+
 	m_TargetLaneIndex = newLane;
 	m_StartPos = m_Position;
 	m_TargetPos = CalcLaneTargetPos(m_TargetLaneIndex);
@@ -346,6 +476,8 @@ void Player::ChangeGravity(int targetFace)
 {
 	if (targetFace == m_GravityFace) return;
 
+	m_pNoteManager->CheckAndHitBarrier(m_LaneIndex, m_GravityFace, LANE_CENTER, targetFace);
+
 	m_TargetFace = targetFace;
 
 	// 重力変更時の移動位置を固定で2番目のレーン（中央）にする
@@ -358,9 +490,7 @@ void Player::ChangeGravity(int targetFace)
 	m_TargetRot = CalcFaceTargetRot(targetFace);
 
 	// 回転を最短経路で補間するため差分を[-180, 180]に正規化
-	float diff = m_TargetRot.z - m_GravityStartRot.z;
-	while (diff > 180.0f)  diff -= 360.0f;
-	while (diff < -180.0f) diff += 360.0f;
+	float diff = NormalizeAngleDelta(m_TargetRot.z - m_GravityStartRot.z);
 	m_TargetRot.z = m_GravityStartRot.z + diff;
 
 	m_GravityTimer = 0.0f;

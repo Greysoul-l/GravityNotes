@@ -32,7 +32,8 @@ Fade::Fade()
 		L"asset\\texture\\fade.png"								// テクスチャパス
 	),
 	m_State(FADE_NONE),
-	m_NextScene(SCENE_NONE)
+	m_NextScene(SCENE_NONE),
+	m_WarmupFrames(6)
 {
 }
 
@@ -76,8 +77,22 @@ void Fade::Update()
 	case FADE_WAIT_LOAD:
 		// 前フレームで完全白を描画済み → ここでシーン遷移・ロード
 		m_Color.w = 1.0f;
-		m_State = FADE_IN;
+		m_State = FADE_WARMUP;
+		m_WarmupFrames = 6; // 6フレーム空回しして、初回描画（GPU構築）などの負荷を暗転中に消化させる
 		SetScene(m_NextScene);
+		break;
+
+	case FADE_WARMUP:
+		// 真っ暗な状態をキープ
+		m_Color.w = 1.0f;
+		if (m_WarmupFrames > 0)
+		{
+			m_WarmupFrames--;
+		}
+		else
+		{
+			m_State = FADE_IN;
+		}
 		break;
 
 	case FADE_IN:

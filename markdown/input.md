@@ -35,7 +35,7 @@
 | `INPUT_ACTION_GRAVITY_DOWN` | 重力移動（床） | `↓ 矢印キー` | `RStick-DOWN` (※1) |
 | `INPUT_ACTION_GRAVITY_LEFT` | 重力移動（左壁） | `← 矢印キー` | `RStick-LEFT` (※1) |
 | `INPUT_ACTION_GRAVITY_RIGHT`| 重力移動（右壁） | `→ 矢印キー` | `RStick-RIGHT` (※1) |
-| `INPUT_ACTION_DEBUG_RESULT` | 強制リザルト遷移 | `F1` | （なし） |
+| `INPUT_ACTION_DEBUG_F1` | 強制リスタート | `F1` | （なし） |
 
 > **(※1) スティックトリガー検出について**: 
 > メニュー移動・レーン移動・重力変更など「1回倒した瞬間」のみ入力を受け取る処理を適切に行うため、`InputManager` 内部でスティックの現在値と前フレームの値を比較し、閾値（`0.5f`）を超えた最初の1フレームだけを検知するトリガー機構を実装しています。これにより長押しによる誤作動を防いでいます。また、アナログトリガーである `LT` / `RT` による攻撃判定（`INPUT_ACTION_ATTACK`）についても同様にトリガー化されています。
@@ -62,12 +62,12 @@
     *   上下左右移動: 現在プレイヤーが立っている面（床・天井・左右壁）を基準にした、平面上の横跳び移動を行います。
     *   重力移動: 現在の重力方向から、指示された新しい面（天井・床・左壁・右壁）に向かって重力を変更します。
     *   ポーズ（未実装）: `INPUT_ACTION_PAUSE` に割り当てられる予定です。
-    *   デバッグリザルト遷移: `F1`キーを押した瞬間に、強制的にリザルト画面に遷移させます。
+    *   デバッグリスタート: `F1`キーを押した瞬間に、`options.yml` の `startmeasure` からゲームをリスタートします。
 *   **使用する抽象入力**:
     *   攻撃: `INPUT_ACTION_ATTACK`（`Input_IsActionTrigger` でのヒット判定、`Input_IsActionDown` でのホールド/リリース判定）
     *   プレイヤー移動: `INPUT_ACTION_MOVE_LEFT` / `RIGHT` / `UP` / `DOWN` (プレイヤーの重力面に応じて自動割り当て)
     *   重力変更: `INPUT_ACTION_GRAVITY_UP` / `DOWN` / `LEFT` / `RIGHT`
-    *   デバッグ強制遷移: `INPUT_ACTION_DEBUG_RESULT`
+    *   デバッグ強制リスタート: `INPUT_ACTION_DEBUG_F1`
 
 ### SCENE_RESULT (リザルト)
 *   **入力の絡む処理**: 決定操作があった場合に `SetPlayJson("")` でリザルトデータを初期化し、`SetSceneFade(SCENE_STAGESELECT)` でステージセレクトに戻ります。

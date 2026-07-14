@@ -3,9 +3,11 @@
 #include "anim_sprite3d.h"
 #include "mathhelper.h"
 #include "split_bilboard.h"
+#include "three_point_light.h"
 
 class NoteManager;    // 前方宣言
 class StatusManager;  // 前方宣言
+struct SoundData;     // 前方宣言
 
 enum LANE {
 	LANE_LEFT = -1,	//=DOWN
@@ -38,12 +40,20 @@ private:
 	float m_GravityDuration;
 	XMFLOAT3 m_GravityStartPos;
 	XMFLOAT3 m_GravityStartRot;
+	bool m_WasHoldingRope; // 前フレームでレインボーを保持していたか
 
 	NoteManager*   m_pNoteManager;
 	StatusManager* m_pStatusManager;
 	SplitBilBoard* m_pEffectSlash;
 	bool           m_IsEffectSlashActive;
 	bool           m_IsOverridePlaying;
+	float          m_DamageFlashRemaining;
+	float          m_DamageFlashElapsed;
+	ThreePointLight m_ThreePointLight;   // キャラクター用3点照明
+
+	SoundData*     m_pSwordSe = nullptr;
+	SoundData*     m_pEnemyHitSe = nullptr;
+	SoundData*     m_pKaihiSe = nullptr;
 
 public:
 	// デフォルトコンストラクタを追加し、基底 Sprite3D のコンストラクタを呼ぶ
@@ -52,9 +62,12 @@ public:
 			"asset/model/knight_02.fbx", S_PBR)
 	{}
 	void Init(NoteManager* nm, StatusManager* sm);
+	void Reset();
 	void Update();
 	void Draw();
 	void Finalize();
+
+	ThreePointLight& GetThreePointLight() { return m_ThreePointLight; }
 
 	int GetLaneIndex()   const { return m_LaneIndex; }
 	int GetGravityFace() const { return m_GravityFace; }

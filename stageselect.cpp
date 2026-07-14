@@ -46,6 +46,8 @@ static Sprite2D* g_pMainVinyl = nullptr;          // 中央のメイン回転デ
 static Sprite2D* g_pRecordFrame = nullptr;        // メインディスクのフレーム画像
 static Sprite2D* g_pToneArm = nullptr;            // トーンアーム（レコードの針）
 static std::vector<ClickSprite2D*> g_pStageDisks;  // 左側の小さなディスクの列
+static Sprite2D* g_pStartGameBG = nullptr;         // ゲーム開始ボタン背景
+static ClickFont* g_pStartGameText = nullptr;      // ゲーム開始テキスト
 
 // アニメーション制御変数
 static float g_VinylRotation = 0.0f;              // ディスクの現在の回転角度（度）
@@ -109,33 +111,6 @@ static std::string GetSelectedJsonName()
 
 static void UpdateBgmFromSelection()
 {
-	//// JSONリストが空、またはディスクインデックスが曲数を超えている場合は処理しない
-	//if (g_ScoreSummaries.empty() || g_SelectedStage >= static_cast<int>(g_ScoreSummaries.size())) return;
-
-	//// ステップ 2 & 3: JSONファイルから "music" 属性を取得し、パスを構築
-	//const ScoreSummary& summary = g_ScoreSummaries[g_SelectedStage];
-	//std::string soundPath = "asset\\sound\\bgm\\" + summary.music;
-
-	//// 選択された曲が現在再生中の曲と同じ場合はそのまま
-	//if (g_LoadedBgmPath == soundPath) return;
-
-	//// RAMのオーバーフローを防ぐため、古い曲を停止して解放
-	//if (g_pCurrentBgmData != nullptr) {
-	//	StopSound(g_pCurrentBgmData);
-	//	UnloadSound(g_pCurrentBgmData);
-	//	g_pCurrentBgmData = nullptr;
-	//}
-
-	//// ステップ 4: 物理ディレクトリから .mp3 ファイルを RAM にロードして再生
-	//g_pCurrentBgmData = LoadMP3(soundPath);
-
-	//if (g_pCurrentBgmData != nullptr) {
-	//	PlaySound(g_pCurrentBgmData, true); // ループ再生
-	//	g_LoadedBgmPath = soundPath;
-	//}
-	//else {
-	//	g_LoadedBgmPath = "";
-	//}
 	if (g_ScoreSummaries.empty()) return;
 
 	// 選択された曲のインデックスが範囲内であることを保証
@@ -145,7 +120,7 @@ static void UpdateBgmFromSelection()
 	}
 
 	const ScoreSummary& summary = g_ScoreSummaries[g_SelectedScoreIndex];
-	std::string soundPath = "asset\\sound\\bgm\\" + summary.music;
+	std::string soundPath = ResolveMusicPath(summary.music);
 
 	// 選択された曲が現在再生中の曲と同じ場合はそのまま
 	if (g_LoadedBgmPath == soundPath) return;
@@ -238,7 +213,7 @@ void StageSelect_Initialize(void)
 	// BGMのプリロードを行う（選曲切り替え時のフリーズを防止するため、キャッシュシステムに事前に登録しておく）
 	for (const auto& summary : g_ScoreSummaries) {
 		if (!summary.music.empty()) {
-			std::string soundPath = "asset\\sound\\bgm\\" + summary.music;
+			std::string soundPath = ResolveMusicPath(summary.music);
 			LoadMP3(soundPath);
 		}
 	}
@@ -257,11 +232,11 @@ void StageSelect_Initialize(void)
 	// 1. 背景画像の初期化（テクスチャサイズに合わせて調整）
 	g_pBackground = new Sprite2D(
 		{ SCREEN_WIDTH / 2.0f, SCREEN_HEIGHT / 2.0f },
-		{ 954.0f, 717.0f },
+		{ SCREEN_WIDTH, SCREEN_HEIGHT },
 		0.0f,
 		{ 1.0f, 1.0f, 1.0f, 1.0f },
 		BLENDSTATE_ALFA,
-		L"asset\\texture\\1.png"
+		L"asset\\texture\\stageselect.png"
 	);
 
 	// 2. 左隅に縦に並ぶ小さなディスクの列を初期化
@@ -319,7 +294,7 @@ void StageSelect_Initialize(void)
 
 	// 5. 曲情報/スコア表示クラスを初期化（画面右側に配置）
 	g_pScoreInfoText = new MultiLineFontRenderer(
-		{ SCREEN_WIDTH - 150.0f, SCREEN_HEIGHT - 400.0f }, // 画面外にはみ出さないように位置を調整
+		{ SCREEN_WIDTH - 180.0f, SCREEN_HEIGHT - 500.0f }, // 画面外にはみ出さないように位置を調整
 		28.0f,
 		0.0f,
 		{ 1.0f, 1.0f, 1.0f, 1.0f },
@@ -335,6 +310,24 @@ void StageSelect_Initialize(void)
 	g_CurrentState = STATE_PLAYING;
 	g_ToneArmAngle = 25.0f;
 	g_DiscSpeed = 0.5f;
+
+	g_pStartGameBG = new Sprite2D(
+		{ 1068.0f, 612.0f },
+		{ 85 * 4, 39 * 4 },
+		0.0f,
+		{ 1.0f, 1.0f, 1.0f, 1.0f },
+		BLENDSTATE_ALFA,
+		L"asset\\texture\\Result_Button_UI.png"
+	);
+
+	g_pStartGameText = new ClickFont(
+		{ 1051.0f, 611.0f },				//位置
+		50.0f,														//文字サイズ
+		0.0f,														//回転（度）
+		{ 1.0f, 1.0f, 1.0f, 1.0f },									//通常色
+		{ 1.0f, 0.8f, 0.2f, 1.0f },									//ホバー色
+		"ゲーム開始"													//テキスト
+	);
 
 	UnLockMouse(); // ユーザー操作のためにマウスのロックを解除
 }
@@ -539,9 +532,13 @@ void StageSelect_Update(void)
 	}
 
 	// --- パート 5: ゲーム開始の決定 (ENTER / SPACE) ---
+	if (g_pStartGameText != nullptr) {
+		g_pStartGameText->Update();
+	}
+
 	// ディスクが安定して再生している場合のみゲーム開始への遷移を許可し、SetPlayJson -> SetSceneFade の順序を厳密に遵守する
 	if (g_CurrentState == STATE_PLAYING) {
-		if (Input_IsActionTrigger(INPUT_ACTION_DECIDE)) {
+		if ((g_pStartGameText != nullptr && g_pStartGameText->IsClick()) || Input_IsActionTrigger(INPUT_ACTION_DECIDE)) {
 			// 本番のステージに遷移する前に、待機中のBGMを解放する
 			if (g_pCurrentBgmData != nullptr) {
 				StopSound(g_pCurrentBgmData);
@@ -572,6 +569,9 @@ void StageSelect_Draw(void)
 	}
 
 	g_pScoreInfoText->Draw(); // 5. 最前面の右上に曲情報とスコアのJSONテキストを描画
+
+	if (g_pStartGameBG != nullptr) g_pStartGameBG->Draw();
+	if (g_pStartGameText != nullptr) g_pStartGameText->Draw();
 }
 
 // ==========================================
@@ -600,5 +600,7 @@ void StageSelect_Finalize(void)
 	g_pStageDisks.clear();
 
 	g_ScoreSummaries.clear();
+
+	SAFE_DELETE(g_pStartGameBG);
+	SAFE_DELETE(g_pStartGameText);
 }
-//

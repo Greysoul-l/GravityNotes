@@ -1,8 +1,7 @@
 ﻿// =========================================================
 // fade.h フェード制御
 // =========================================================
-#ifndef _FADE_H_
-#define _FADE_H_
+#pragma once
 
 #include "sprite2d.h"
 #include "scene.h"
@@ -16,7 +15,8 @@ enum FADESTAT
 	FADE_OUT,		// 暗くなる
 	FADE_IN,		// 明るくなる
 	FADE_MAX,		// 真っ暗で待機
-	FADE_WAIT_LOAD	// 完全白で1フレーム待機後にロード
+	FADE_WAIT_LOAD,	// 完全白で1フレーム待機後にロード
+	FADE_WARMUP		// ロード完了後、真っ暗なまま数フレーム待機（初期化処理スパイク逃がし用）
 };
 
 // =========================================================
@@ -27,6 +27,7 @@ class Fade : public Sprite2D
 private:
 	FADESTAT m_State;
 	SCENE m_NextScene;
+	int m_WarmupFrames; // 空回しフレーム数カウンタ
 
 public:
 	// コンストラクタ・デストラクタ
@@ -57,5 +58,3 @@ void Fade_Finalize(void);
 void SetSceneFade(SCENE ns = SCENE_NONE);
 void Fade_StartIn(void);
 FADESTAT GetFadeState(void);
-
-#endif

@@ -156,6 +156,18 @@ public:
 	// アニメーション付きで描画
 	virtual void Draw(void);
 
+	// スキニング姿勢のままShadowMapへ影(深度)を描く。
+	virtual void DrawShadowMap(const XMMATRIX& lightView, const XMMATRIX& lightProjection) override
+	{
+		if (m_IsGlb) return;
+		// 最新のアニメ姿勢でボーン行列を更新してから影を落とす
+		UpdateBoneMatrices();
+		if (m_Model)
+		{
+			ModelDrawShadowMapSkinned(m_Model, GetPos(), GetRot(), GetScale(), m_BoneMatrices, lightView, lightProjection);
+		}
+	}
+
 	// マテリアルカラーのオーバーライド
 	void SetMaterialOverrideColor(const XMFLOAT4& color)
 	{

@@ -59,7 +59,7 @@ void DebugLightingScene_Initialize(void)
 		0.0f,
 		{ 1.0f,1.0f,1.0f, 1.0f },
 		BLENDSTATE_NONE,
-		L"asset\\movie\\nullmovie.mp4"
+		L"asset\\movie\\title_nologo.mp4"
 	);
 
 

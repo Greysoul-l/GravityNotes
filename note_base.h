@@ -26,3 +26,12 @@ public:
 	int  GetLaneIndex() const { return m_LaneIndex; }
 	int  GetFace()      const { return m_Face; }
 };
+
+// 面をまたいだ隣接レーンの角判定
+// (Floor LANE_LEFT<->LeftWall LANE_LEFT / Floor LANE_RIGHT<->RightWall LANE_LEFT /
+//  Ceiling LANE_LEFT<->LeftWall LANE_RIGHT / Ceiling LANE_RIGHT<->RightWall LANE_RIGHT)
+// face: 0=FLOOR, 1=LEFT_WALL, 2=CEILING, 3=RIGHT_WALL / lane: -1=LEFT, 0=CENTER, 1=RIGHT
+bool IsCornerAdjacent(int lane1, int face1, int lane2, int face2);
+
+// 完全一致、または隣接面の角どうしなら true（Enemy・Hold連撃など、角越しのヒットを許容したい判定に使う）
+bool IsSameOrCornerPosition(int lane1, int face1, int lane2, int face2);

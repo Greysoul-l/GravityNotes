@@ -5,6 +5,7 @@
 #include <stdexcept>
 #include <algorithm>
 #include <cctype>
+#include <set>
 #include "framework/nlohmann/json.hpp"
 #include "debug_ostream.h"
 
@@ -73,8 +74,32 @@ struct ScoreData
 {
 	float bpm;
 	std::string music;
+	// 音楽ファイルの実際の音の出だしと譜面上のbeat=0のタイミングのズレを補正する値（秒）。
+	// 例: 曲の先頭に0.2秒の無音があるなら offset=0.2 とすることで、
+	//     ノーツの通過タイミングと実際に聴こえる音を一致させる。
+	// JSONに"offset"キーが無い場合は0.0（補正なし）として扱う。
+	float offset;
 	std::vector<ScoreEvent> events;
+	int fullCombo = 0;
 };
+
+// 音楽ファイルのパス解決を行うインライン関数
+inline std::string ResolveMusicPath(const std::string& musicFile)
+{
+	if (musicFile.empty()) return "";
+	// 1. asset/score/ をチェック
+	std::string path1 = "asset/score/" + musicFile;
+	std::ifstream f1(path1);
+	if (f1.good()) return path1;
+	
+	// 2. music/ をチェック
+	std::string path2 = "music/" + musicFile;
+	std::ifstream f2(path2);
+	if (f2.good()) return path2;
+	
+	// 見つからなければデフォルトで asset/score/ を返す
+	return path1;
+}
 
 // JSONファイルからスコアデータを読み込む
 inline ScoreData LoadScore(const std::string& filePath)
@@ -94,6 +119,7 @@ inline ScoreData LoadScore(const std::string& filePath)
 		ScoreData scoreData;
 		scoreData.bpm = jsonData["bpm"].get<float>();
 		scoreData.music = jsonData["music"].get<std::string>();
+		scoreData.offset = jsonData.value("offset", 0.0f);
 
 		// イベント配列をパース
 		if (jsonData.contains("events"))
@@ -105,15 +131,52 @@ inline ScoreData LoadScore(const std::string& filePath)
 				scoreEvent.lane    = event["lane"].get<int>();
 				scoreEvent.type    = ParseScoreType(event["type"].get<std::string>());
 				scoreEvent.wall    = ParseScoreWall(event["wall"].get<std::string>());
-				scoreEvent.endBeat = event.value("endBeat", scoreEvent.beat);
-				scoreEvent.endLane = event.value("endLane", scoreEvent.lane);
+				scoreEvent.endBeat = event.contains("endBeat") ? event["endBeat"].get<float>() : scoreEvent.beat;
+				scoreEvent.endLane = event.contains("endLane") ? event["endLane"].get<int>() : scoreEvent.lane;
 				// endWall: RopeHold専用（なければ wall と同値）
 				std::string endWallStr = event.value("endWall", std::string(""));
 				scoreEvent.endWall = endWallStr.empty() ? scoreEvent.wall : ParseScoreWall(endWallStr);
 
 				scoreData.events.push_back(scoreEvent);
 			}
+
+			std::sort(scoreData.events.begin(), scoreData.events.end(), [](const ScoreEvent& a, const ScoreEvent& b) {
+				return a.beat < b.beat;
+			});
 		}
+
+		// フルコンボ（最大コンボ）数の逆算
+		int fullCombo = 0;
+		std::set<float> barrierBeats;
+		for (const auto& ev : scoreData.events)
+		{
+			switch (ev.type)
+			{
+			case ScoreType::Enemy:
+				fullCombo += 1;
+				break;
+			case ScoreType::Barrier:
+				barrierBeats.insert(ev.beat);
+				break;
+			case ScoreType::Hold:
+				{
+					float diffBeat = ev.endBeat - ev.beat;
+					float stepVal = diffBeat / 0.25f; // HOLD_BEAT_INTERVAL = 0.25f
+					int totalSteps = (stepVal > 0.0f) ? (int)ceilf(stepVal) + 1 : 2;
+					if (totalSteps < 2) totalSteps = 2;
+					fullCombo += totalSteps;
+				}
+				break;
+			case ScoreType::RopeHold:
+				fullCombo += 1;
+				break;
+			case ScoreType::Orb:
+				// Orb はコンボに影響しないため加算しない
+				break;
+			}
+		}
+		fullCombo += static_cast<int>(barrierBeats.size());
+		scoreData.fullCombo = fullCombo;
 
 		return scoreData;
 	}

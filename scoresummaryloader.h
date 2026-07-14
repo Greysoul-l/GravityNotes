@@ -7,6 +7,7 @@
 #include <vector>
 #include "framework/nlohmann/json.hpp"
 #include "debug_ostream.h"
+#include "scoreloader.h"
 
 struct ScoreSummary
 {
@@ -30,7 +31,7 @@ inline ScoreSummary LoadSingleScoreSummary(const std::string& jsonName, const st
 		return summary;
 	}
 
-	const std::string jsonPath = directoryPath + "\\" + jsonName;
+	const std::string jsonPath = (jsonName.find('\\') != std::string::npos || jsonName.find('/') != std::string::npos) ? jsonName : (directoryPath + "\\" + jsonName);
 	std::ifstream file(jsonPath);
 	if (!file.is_open())
 	{
@@ -62,36 +63,38 @@ inline ScoreSummary LoadSingleScoreSummary(const std::string& jsonName, const st
 	return summary;
 }
 
-inline std::vector<ScoreSummary> LoadScoreSummaries(const std::string& directoryPath = "asset\\score")
+inline std::vector<ScoreSummary> LoadScoreSummaries(const std::vector<std::string>& directories = { "asset\\score", "json" })
 {
 	std::vector<ScoreSummary> summaries;
 
-	const std::string pattern = directoryPath + "\\*.json";
-	WIN32_FIND_DATAA findData = {};
-	HANDLE findHandle = FindFirstFileA(pattern.c_str(), &findData);
-	int index = 0;
+	for (const auto& directoryPath : directories)
+	{
+		const std::string pattern = directoryPath + "\\*.json";
+		WIN32_FIND_DATAA findData = {};
+		HANDLE findHandle = FindFirstFileA(pattern.c_str(), &findData);
 
-	if (findHandle == INVALID_HANDLE_VALUE)
-	{
-		return summaries;
-	}
-	do
-	{
-		if ((findData.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY) != 0)
+		if (findHandle == INVALID_HANDLE_VALUE)
 		{
 			continue;
 		}
-
-		ScoreSummary summary = LoadSingleScoreSummary(findData.cFileName, directoryPath);
-		if (!summary.jsonname.empty())
+		do
 		{
-			summaries.push_back(summary);
-		}
+			if ((findData.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY) != 0)
+			{
+				continue;
+			}
 
+			ScoreSummary summary = LoadSingleScoreSummary(findData.cFileName, directoryPath);
+			if (!summary.jsonname.empty())
+			{
+				summary.jsonname = directoryPath + "\\" + findData.cFileName;
+				summaries.push_back(summary);
+			}
 
-	} while (FindNextFileA(findHandle, &findData) != 0);
+		} while (FindNextFileA(findHandle, &findData) != 0);
 
-	FindClose(findHandle);
+		FindClose(findHandle);
+	}
 
 	std::sort(summaries.begin(), summaries.end(), [](const ScoreSummary& a, const ScoreSummary& b)
 		{

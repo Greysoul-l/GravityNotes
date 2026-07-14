@@ -86,11 +86,6 @@ void DebugCamera_Update(void)
 		GetCamera()->UpdateView(g_DebugCameraPos, atPos);
 	}
 
-	if (Keyboard_IsKeyDownTrigger(KK_ESCAPE))
-	{
-		SetSceneFade(SCENE_TITLE);
-	}
-
 	// カメラ位置のシェーダー送信は削除
 }
 

@@ -10,8 +10,10 @@ private:
 	int   m_Score;
 	int   m_Combo;
 	int   m_MaxCombo;
-	int   m_HitCount;
-	int   m_MissCount;
+	int   m_Hits;
+	int   m_Misses;
+	int   m_OrbGets;
+	int   m_OrbLosses;
 	JUDGE m_LastJudge   = JUDGE_NONE;
 	bool  m_HasNewJudge = false;
 
@@ -21,6 +23,8 @@ public:
 
 	void OnJudge(JUDGE result);
 	void OnJudgeHold(JUDGE result);
+	void OnOrbHit();
+	void OnOrbMiss();
 
 	int  GetHP()       const { return m_HP; }
 	int  GetMaxHP()    const { return m_MaxHP; }

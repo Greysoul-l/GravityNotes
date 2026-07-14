@@ -18,6 +18,9 @@ static Sprite2D* g_pTitleSprite = nullptr;
 static ClickFont* g_pChangeSceneText = nullptr;
 static ClickFont* g_pDebugSceneText = nullptr;
 static Movie* g_pTitleMovie;
+static Movie* g_pLogoMovieBB;
+static int g_LogoFrameCount = 0;
+static SoundData* g_pTitleBGM = nullptr;
 
 
 void Title_Initialize(void)
@@ -28,7 +31,21 @@ void Title_Initialize(void)
 		0.0f,														//回転（度）
 		{ 1.0f,1.0f,1.0f, 1.0f },
 		BLENDSTATE_NONE,
-		L"asset\\movie\\titlemovie_roop.mp4"
+		L"asset\\movie\\title_nologo.mp4"
+	);
+
+	g_LogoFrameCount = 0;
+
+	g_pLogoMovieBB = new Movie(
+		{ SCREEN_WIDTH / 3 * 2 , SCREEN_HEIGHT / 3 - 60.0f},					//位置
+		{ 500.0f },											//サイズ
+		0.0f,														//回転（度）
+		{ 1.0f,1.0f,1.0f, 1.0f },
+		BLENDSTATE_ALFA,
+		L"asset\\movie\\LogoAnimationSpriteSheet_30fps.mp4",
+		true,
+		false,
+		false
 	);
 
 	g_pChangeSceneText = new ClickFont(
@@ -50,6 +67,12 @@ void Title_Initialize(void)
 	);
 
 	UnLockMouse();//マウスアンロック
+
+	g_pTitleBGM = LoadMP3("asset/sound/se/VSQSE_1189_wave_35.mp3");
+	if (g_pTitleBGM)
+	{
+		PlaySound(g_pTitleBGM, true);
+	}
 }
 
 
@@ -58,6 +81,20 @@ void Title_Update(void)
 {
 	//③処理
 	g_pTitleMovie->Update();
+
+	g_LogoFrameCount++;
+	if (g_LogoFrameCount >= 80)
+	{
+		if (g_pLogoMovieBB)
+		{
+			g_pLogoMovieBB->Play();
+		}
+	}
+
+	if (g_pLogoMovieBB)
+	{
+		g_pLogoMovieBB->Update();
+	}
 	g_pChangeSceneText->Update();
 	g_pDebugSceneText->Update();
 
@@ -77,6 +114,10 @@ void Title_Draw(void)
 {
 	//④描画
 	g_pTitleMovie->Draw();
+	if (g_pLogoMovieBB)
+	{
+		g_pLogoMovieBB->Draw();
+	}
 	g_pChangeSceneText->Draw();
 	g_pDebugSceneText->Draw();
 
@@ -86,6 +127,14 @@ void Title_Finalize(void)
 {
 	//⑤解放
 	SAFE_DELETE(g_pTitleMovie);
+	SAFE_DELETE(g_pLogoMovieBB);
 	SAFE_DELETE(g_pChangeSceneText);
 	SAFE_DELETE(g_pDebugSceneText);
+
+	if (g_pTitleBGM)
+	{
+		StopSound(g_pTitleBGM);
+		UnloadSound(g_pTitleBGM);
+		g_pTitleBGM = nullptr;
+	}
 }

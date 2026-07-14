@@ -1,10 +1,12 @@
 ﻿#define NOMINMAX
 #include "rainbow_note.h"
 #include "game.h"
+#include "debug_ostream.h"
 #include <algorithm>
 #include <cmath>
 
 static const float ROPE_HIT_ZONE_Z   = -0.5f;
+static const float ROPE_START_ZONE_Z = 0.5f;   // 活性化（開始）の基準Z座標（PASSIVE_ZONE_Zと同値）
 static const float ROPE_ACTIVE_RANGE = 0.0f;
 static const float TUNNEL_HALF       = 2.5f;
 static const float RIBBON_INSET      = 0.10f;  // z-fighting防止：壁から内側にずらす量
@@ -122,6 +124,15 @@ static void DrawRibbonQuad(XMFLOAT3 corners[4],
 
 // ==========================================================
 
+void RopeHoldNote::FinalizeSharedResources()
+{
+	if (g_RibbonVB)
+	{
+		g_RibbonVB->Release();
+		g_RibbonVB = nullptr;
+	}
+}
+
 void RopeHoldNote::Init(int startLane, int endLane, int startFace, int endFace,
                         float startZ, float endZ, float speed)
 {
@@ -143,7 +154,7 @@ void RopeHoldNote::Update()
 
 	if (m_State == State::HOLDING)
 	{
-		float passed   = ROPE_HIT_ZONE_Z - GetPosZ();
+		float passed   = ROPE_START_ZONE_Z - GetPosZ();
 		m_HoldProgress = std::max(0.0f, std::min(passed / m_RopeLength, 1.0f));
 		if (m_HoldProgress >= 1.0f)
 			Complete();
@@ -177,7 +188,7 @@ void RopeHoldNote::Draw()
 	XMFLOAT2 n2 = FaceNormal(m_EndFace);
 
 	const float drawNear = (m_State == State::HOLDING)
-		? ROPE_HIT_ZONE_Z
+		? ROPE_START_ZONE_Z
 		: std::max(0.0f, m_Position.z);
 	const float drawFar  = m_Position.z + m_RopeLength;
 

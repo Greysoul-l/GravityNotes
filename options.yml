@@ -1,0 +1,6 @@
+# options.yml
+# directplay: に譜面JSONのパスを指定すると、直接その譜面を再生します。
+# 例）directplay: "asset/score/shiningstar.json"
+directplay: ""
+# startmeasure: プレイを開始する小節の位置を指定します（デフォルト: 1）
+startmeasure: 1

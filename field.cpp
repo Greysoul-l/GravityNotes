@@ -11,7 +11,7 @@ void Field::Init() {
 	m_ModelNormal = ModelLoad("asset/model/field_allnormal.fbx");
 	m_ModelHasiranashi = ModelLoad("asset/model/field_hasiranashi.fbx");
 	m_Model = m_ModelHasiranashi;
-	m_ShaderType = S_PHONG;
+	m_ShaderType = S_PHONG_SHADOW; // Phongライティング + ShadowMapの落ち影を受ける
 
 	// Sprite3Dのメンバ変数を初期化
 	m_ModelSize = ModelGetSize(m_ModelNormal);
@@ -63,13 +63,31 @@ void Field::Update(float speed){
 
 void Field::Draw() {
 	XMFLOAT3 originalPos = GetPos();
+
+	// 1パス目: ShadowMap影受けあり (S_PHONG_SHADOW) のセグメントを描画
+	m_ShaderType = S_PHONG_SHADOW;
 	for (int i = 0; i < NUM_FIELDS; ++i) {
-		XMFLOAT3 tempPos = originalPos;
-		tempPos.z = m_ScrollPos[i];
-		SetPos(tempPos);
-		m_Model = m_FieldModels[i];
-		Sprite3D::Draw();
+		if (m_ScrollPos[i] <= SHADOW_LOD_NEAR) {
+			XMFLOAT3 tempPos = originalPos;
+			tempPos.z = m_ScrollPos[i];
+			SetPos(tempPos);
+			m_Model = m_FieldModels[i];
+			Sprite3D::Draw();
+		}
 	}
+
+	// 2パス目: 通常ライティングのみ (S_PHONG) のセグメントを描画
+	m_ShaderType = S_PHONG;
+	for (int i = 0; i < NUM_FIELDS; ++i) {
+		if (m_ScrollPos[i] > SHADOW_LOD_NEAR) {
+			XMFLOAT3 tempPos = originalPos;
+			tempPos.z = m_ScrollPos[i];
+			SetPos(tempPos);
+			m_Model = m_FieldModels[i];
+			Sprite3D::Draw();
+		}
+	}
+
 	SetPos(originalPos);
 }
 

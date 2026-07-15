@@ -308,7 +308,7 @@ void StageSelect_Initialize(void)
 
 	// 5. 曲情報/スコア表示クラスを初期化（画面右側に配置）
 	g_pScoreInfoText = new MultiLineFontRenderer(
-		{ SCREEN_WIDTH - 150.0f, SCREEN_HEIGHT - 400.0f }, // 画面外にはみ出さないように位置を調整
+		{ SCREEN_WIDTH - 190.0f, SCREEN_HEIGHT - 450.0f }, // 画面外にはみ出さないように位置を調整
 		28.0f,
 		0.0f,
 		{ 1.0f, 1.0f, 1.0f, 1.0f },

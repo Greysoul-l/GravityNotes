@@ -24,15 +24,15 @@ using namespace DirectX;
 // 状態定義およびグローバル変数
 // ==========================================
 
-// レコードプレーヤーの一連のアクションを処理するステートマシン
-enum VinylState {
-	STATE_PLAYING,         // 音楽が安定して再生され、ディスクが均等に回転している状態
-	STATE_LIFTING_ARM,     // プレイヤーが曲を変更した：トーンアームが持ち上がり、ディスクが減速している状態
-	STATE_CHANGING_DISC,   // アームが元の位置に戻り、ディスクが停止した：1フレームでディスクを入れ替える状態
-	STATE_DROPPING_ARM     // ディスク交換完了：トーンアームが新しいディスクへゆっくり降下している状態
+// 剣＆盾のステージ選択画面における一連のアクションを管理するステートマシン
+enum SwordShieldState {
+	STATE_PLAYING,          // 安定状態：盾が等速回転し、剣が盾に刺さっている状態
+	STATE_PULLING_SWORD,    // プレイヤーがステージを変更：剣が盾から真上に引き抜かれ、盾にブレーキがかかる状態
+	STATE_CHANGING_SHIELD,  // 剣が完全に引き抜かれ、盾が停止：1フレームで盾を切り替える処理を行う状態
+	STATE_PLUNGING_SWORD    // 盾の切り替え完了：剣が新しい盾に向かってゆっくりと突き刺さる状態
 };
 
-static VinylState g_CurrentState = STATE_PLAYING; // 初期状態
+static SwordShieldState g_CurrentState = STATE_PLAYING; // 初期状態
 
 // 左側のレコードアルバムに対応するステージ数/曲数を管理
 static int g_MaxStages = 0;
@@ -42,17 +42,23 @@ static int g_NextStage = 0;                      // 次のステージ（遷移�
 // グラフィックオブジェクト（スプライト＆フォントポインタ）
 static Sprite2D* g_pResultBG = nullptr;           // 最背面の背景画像
 static Sprite2D* g_pBackground = nullptr;         // レコードプレーヤーの背景画像
-static Sprite2D* g_pMainVinyl = nullptr;          // 中央のメイン回転ディスク
-static Sprite2D* g_pRecordFrame = nullptr;        // メインディスクのフレーム画像
-static Sprite2D* g_pToneArm = nullptr;            // トーンアーム（レコードの針）
-static std::vector<ClickSprite2D*> g_pStageDisks;  // 左側の小さなディスクの列
+static Sprite2D* g_pMainShield = nullptr;         // 中央のメイン回転盾（以前の g_pMainVinyl）
+static Sprite2D* g_pShieldFrame = nullptr;        // メイン盾の外枠フレーム（以前の g_pRecordFrame）
+static Sprite2D* g_pSword = nullptr;              // 盾に刺さる剣（以前の g_pToneArm）
+static std::vector<ClickSprite2D*> g_pStageShields;  // 左側に並ぶ小さな盾の列（以前の g_pStageDisks）
 static Sprite2D* g_pStartGameBG = nullptr;         // ゲーム開始ボタン背景
 static ClickFont* g_pStartGameText = nullptr;      // ゲーム開始テキスト
 
 // アニメーション制御変数
-static float g_VinylRotation = 0.0f;              // ディスクの現在の回転角度（度）
-static float g_ToneArmAngle = 0.0f;               // トーンアームの角度（25度はディスク上、0度は外側）
-static float g_DiscSpeed = 0.5f;                  // 現在の回転速度（スムーズな減速用）
+static float g_ShieldRotation = 0.0f;             // メイン盾の現在の回転角度（度数法、以前の g_VinylRotation）
+static float g_SwordLiftOffset = 0.0f;            // 剣の引き上げ量（0 = 盾に刺さっている状態、SWORD_LIFT_DISTANCE = 完全に引き抜かれた状態、以前の g_ToneArmAngle）
+static float g_ShieldSpeed = 0.5f;                // メイン盾の現在の回転速度（スムーズな減速用、以前の g_DiscSpeed）
+const float SWORD_LIFT_DISTANCE = 360.0f;         // 盾変更時に剣が真上に引き上げられるピクセル数
+static float g_SwordBaseX = 0.0f;                 // 剣の基準X座標（盾の中心軸に合わせる）
+static float g_SwordBaseY = 0.0f;                 // 剣が盾に完全に刺さっているときの基準Y座標（最も低い位置）
+
+
+const float SWORD_DIAGONAL_FACTOR = 0.70710678f;  // cos(45°) = sin(45°): 剣を垂直ではなく45度の斜め方向（右上 ↘ 左下）に突き刺すための係数
 
 static float g_ScrollOffset = 0.0f;      // 現在のオフセット（滑らかに補間するためのfloat）
 static float g_ScrollTarget = 0.0f;      // 目標のオフセット
@@ -64,6 +70,11 @@ static int g_SelectedScoreIndex = 0;
 
 static SoundData* g_pCurrentBgmData = nullptr;    // 現在再生中の楽曲 of サウンドデータポインタ
 static std::string g_LoadedBgmPath = "";          // 重複ロードを避けるための現在ロード中のサウンドファイルパス
+
+
+// 小さな盾の外枠用スプライトの宣言
+static Sprite2D* g_pSmallShieldFrame = nullptr;     // <--- 新規追加: 小さな盾の外枠フレーム
+
 
 // ==========================================
 // ヘルパー関数
@@ -232,24 +243,24 @@ void StageSelect_Initialize(void)
 	// 1. 背景画像の初期化（テクスチャサイズに合わせて調整）
 	g_pBackground = new Sprite2D(
 		{ SCREEN_WIDTH / 2.0f, SCREEN_HEIGHT / 2.0f },
-		{ SCREEN_WIDTH, SCREEN_HEIGHT },
+		{ 954.0f, 717.0f },
 		0.0f,
 		{ 1.0f, 1.0f, 1.0f, 1.0f },
 		BLENDSTATE_ALFA,
-		L"asset\\texture\\stageselect.png"
+		L"asset\\texture\\a.png"
 	);
 
 	// 2. 左隅に縦に並ぶ小さなディスクの列を初期化
-	g_pStageDisks.resize(g_MaxStages, nullptr);
+	g_pStageShields.resize(g_MaxStages, nullptr);
 	for (int i = 0; i < g_MaxStages; i++) {
-		float posX = (SCREEN_WIDTH / 2.0f) - 550.0f;
-		float posY = 70.0f + (i * 130.0f); // 各ディスクを縦方向に等間隔で配置
+		float posX = (SCREEN_WIDTH / 2.0f) + 550.0f;
+		float posY = 70.0f + (i * 150.0f); // 各ディスクを縦方向に等間隔で配置
 
 		std::wstring thumbPath = GetThumbnailPath(g_ScoreSummaries[i].thumbnail);
 
-		g_pStageDisks[i] = new ClickSprite2D(
+		g_pStageShields[i] = new ClickSprite2D(
 			{ posX, posY },
-			{ 110.0f, 110.0f },
+			{ 75.0f, 75.0f },
 			0.0f,
 			{ 1.0f, 1.0f, 1.0f, 1.0f },
 			BLENDSTATE_ALFA,
@@ -261,40 +272,43 @@ void StageSelect_Initialize(void)
 	std::wstring mainThumbPath = L"";
 	if (g_MaxStages > 0) {
 		mainThumbPath = GetThumbnailPath(g_ScoreSummaries[g_SelectedStage].thumbnail);
-	} else {
+	}
+	else {
 		mainThumbPath = L"asset\\texture\\notfound_thumbnail.png";
 	}
-	g_pMainVinyl = new Sprite2D(
-		{ (SCREEN_WIDTH / 2.0f) - 62.0f, (SCREEN_HEIGHT / 2.0f) + 2.0f },
-		{ 322.0f, 322.0f },
+	g_pMainShield = new Sprite2D(
+		{ (SCREEN_WIDTH / 2.0f) - 30.0f , (SCREEN_HEIGHT / 2.0f) + 10.0f },
+		{ 250.0f, 250.0f },
 		0.0f,
 		{ 1.0f, 1.0f, 1.0f, 1.0f },
 		BLENDSTATE_ALFA,
 		mainThumbPath.c_str()
 	);
 
-	g_pRecordFrame = new Sprite2D(
-		{ (SCREEN_WIDTH / 2.0f) - 62.0f, (SCREEN_HEIGHT / 2.0f) + 2.0f },
-		{ 700.0f, 700.0f },
+	g_pShieldFrame = new Sprite2D(
+		{ (SCREEN_WIDTH / 2.0f) - 30.0f , (SCREEN_HEIGHT / 2.0f) + 10.0f },
+		{ 650.0f, 650.0f },
 		0.0f,
 		{ 1.0f, 1.0f, 1.0f, 1.0f },
 		BLENDSTATE_ALFA,
-		L"asset\\texture\\recordframe.png"
+		L"asset\\texture\\Untitled-1.png"
 	);
 
-	// 4. トーンアーム（レコードの針）を初期化（メインディスクの右上へ重ねて配置）
-	g_pToneArm = new Sprite2D(
-		{ SCREEN_WIDTH / 2.0f + 210.0f, SCREEN_HEIGHT / 2.0f - 290.0f },
-		{ 400.0f, 400.0f },
-		75.0f, // デフォルトの初期角度（レコード盤の上に載っている状態）
+	// 4. メイン盾の中心に合わせて、剣の初期位置を設定（上からまっすぐ突き刺さるように配置）
+	g_SwordBaseX = (SCREEN_WIDTH / 2.0f) + 10.0f;       // 盾の中心と同じX軸
+	g_SwordBaseY = 300.0f;       // 剣が盾に完全に刺さっているときのY座標（最も低い位置）
+	g_pSword = new Sprite2D(
+		{ g_SwordBaseX, g_SwordBaseY },
+		{ 800.0f, 800.0f },
+		45.0f, // 傾き回転はさせず、剣は常に直立状態にする
 		{ 1.0f, 1.0f, 1.0f, 1.0f },
 		BLENDSTATE_ALFA,
-		L"asset\\texture\\tonearm2.png"
+		L"asset\\texture\\Untitled-3.png" // TODO: アセットが用意できたら本物の剣の画像に差し替える
 	);
 
 	// 5. 曲情報/スコア表示クラスを初期化（画面右側に配置）
 	g_pScoreInfoText = new MultiLineFontRenderer(
-		{ SCREEN_WIDTH - 180.0f, SCREEN_HEIGHT - 500.0f }, // 画面外にはみ出さないように位置を調整
+		{ SCREEN_WIDTH - 150.0f, SCREEN_HEIGHT - 400.0f }, // 画面外にはみ出さないように位置を調整
 		28.0f,
 		0.0f,
 		{ 1.0f, 1.0f, 1.0f, 1.0f },
@@ -302,14 +316,23 @@ void StageSelect_Initialize(void)
 		1.35f
 	);
 
+	// StageSelect_Initialize の最後（UnLockMouseの手前）にこの処理を追加
+	g_pSmallShieldFrame = new Sprite2D(
+		{ 0.0f, 0.0f },          // 初期位置は仮として(0,0)に設定（描画時に動的に更新される）
+		{ 200.0f, 200.0f },      // サイズ（外枠として囲うため、サムネイル画像サイズ110.0fより少し大きめに設定）
+		0.0f,
+		{ 1.0f, 1.0f, 1.0f, 1.0f },
+		BLENDSTATE_ALFA,
+		L"asset\\texture\\Untitled-1.png" // <--- 小さな盾の外枠画像のパス
+	);
 	// ディスク0の最初のBGMを自動的に検索して再生
 	RefreshSelectedScoreText();
 	UpdateBgmFromSelection();
 
-	// メカニカルな動作の初期状態パラメータを再設定
+	// 物理挙動に関する初期状態のパラメータを再設定
 	g_CurrentState = STATE_PLAYING;
-	g_ToneArmAngle = 25.0f;
-	g_DiscSpeed = 0.5f;
+	g_SwordLiftOffset = 0.0f; // 剣は初期状態で完全に盾に刺さっている
+	g_ShieldSpeed = 0.5f;
 
 	g_pStartGameBG = new Sprite2D(
 		{ 1068.0f, 612.0f },
@@ -341,7 +364,7 @@ void StageSelect_Update(void)
 	// 理由：%によるlerp（offset += (target-offset)*0.15f）は目標に近づくほど指数関数的に遅くなる。
 	// そのため、リストの端にあるディスク（オフセットが境界である0またはMAX_STAGESに近づくとき）は、
 	// 境界付近で数十フレームの間「カクつく/静止する」状態になり、最終的に閾値に達したときに突然ジャンプ（スナップ）してしまう。
-	// 固定の移動ステップを使用することで、一定のフレーム数で常に正確に目標値（target）に到達し、
+	// 固定の移動ステップを使用することで、一定 of フレーム数で常に正確に目標値（target）に到達し、
 	// 均等な動きになり、カクつきの後にジャンプする現象が発生しなくなる。
 	const float SCROLL_STEP = 1.0f / 25.0f; // 約25フレームで1段階完了（トーンアームの昇降時間と同期）
 	if (g_ScrollOffset < g_ScrollTarget) {
@@ -353,8 +376,8 @@ void StageSelect_Update(void)
 		if (g_ScrollOffset < g_ScrollTarget) g_ScrollOffset = g_ScrollTarget;
 	}
 
-	float anchorY = 70.0f;
-	float spacing = 130.0f;
+	float anchorY = 80.0f;
+	float spacing = 150.0f;
 	// --- パート 1: キーボード/マウスの入力制御 ---
 	// ディスクが安定して回転している状態（STATE_PLAYING）でのみ曲変更コマンドを受け付ける
 	if (g_CurrentState == STATE_PLAYING)
@@ -385,9 +408,9 @@ void StageSelect_Update(void)
 		//	ChangeSelectedScore(1);
 		//}
 
-		// ステージが変更された場合、アームを持ち上げる一連のアクションを開始
+		// ステージ（盾）の変更操作があった場合、剣を引き抜く一連のアクションを開始する
 		if (isInputPressed) {
-			g_CurrentState = STATE_LIFTING_ARM;
+			g_CurrentState = STATE_PULLING_SWORD;
 			if (g_pCurrentBgmData != nullptr) {
 				StopSound(g_pCurrentBgmData);
 				// UnloadSound(g_pCurrentBgmData);
@@ -401,35 +424,36 @@ void StageSelect_Update(void)
 	switch (g_CurrentState)
 	{
 	case STATE_PLAYING:
-		g_DiscSpeed = 0.5f;     // ディスクが安定して一定速度で回転
-		g_ToneArmAngle = 0.0f;  // ディスク上のトーンアームの位置を維持（アーム角度0度）
+		g_ShieldSpeed = 0.5f;       // メイン盾の安定した回転速度
+		g_SwordLiftOffset = 0.0f;   // 剣が盾に刺さったままの位置を維持
 		break;
 
-	case STATE_LIFTING_ARM:
-		// トーンアームがディスク上から外側へスムーズに移動（角度を25度まで上げる）
-		if (g_ToneArmAngle < 25.0f) {
-			g_ToneArmAngle += 1.0f; // トーンアームの移動速度
+	case STATE_PULLING_SWORD:
+		// 剣を盾から真上に引き抜く（オフセット値を SWORD_LIFT_DISTANCE まで増やす）
+		if (g_SwordLiftOffset < SWORD_LIFT_DISTANCE) {
+			g_SwordLiftOffset += 15.0f; // 剣を引き抜く速度
+			if (g_SwordLiftOffset > SWORD_LIFT_DISTANCE) g_SwordLiftOffset = SWORD_LIFT_DISTANCE;
 		}
 
-		// 慣性によりディスクが急停止せず、滑らかに減速する
-		if (g_DiscSpeed > 0.0f) {
-			g_DiscSpeed -= 0.02f;
-			if (g_DiscSpeed < 0.0f) g_DiscSpeed = 0.0f;
+		// 盾は急停止せず、慣性摩擦によって徐々に減速する
+		if (g_ShieldSpeed > 0.0f) {
+			g_ShieldSpeed -= 0.02f;
+			if (g_ShieldSpeed < 0.0f) g_ShieldSpeed = 0.0f;
 		}
 
-		// 遷移条件：トーンアームが外側に完全に移動し（>=25度）、ディスクが完全に停止していること
-		if (g_ToneArmAngle >= 25.0f && g_DiscSpeed <= 0.0f) {
-			g_CurrentState = STATE_CHANGING_DISC;
+		// 状態遷移条件：剣が完全に引き抜かれ、かつ盾が完全に停止したとき
+		if (g_SwordLiftOffset >= SWORD_LIFT_DISTANCE && g_ShieldSpeed <= 0.0f) {
+			g_CurrentState = STATE_CHANGING_SHIELD;
 		}
 		break;
 
-	case STATE_CHANGING_DISC:
+	case STATE_CHANGING_SHIELD:
 		// 正式なステージのアルバムインデックスを更新
 		g_SelectedStage = g_NextStage;
 
 		// メモリリークを防ぐため、古いディスクのテクスチャオブジェクトを削除
-		if (g_pMainVinyl != nullptr) {
-			SAFE_DELETE(g_pMainVinyl);
+		if (g_pMainShield != nullptr) {
+			SAFE_DELETE(g_pMainShield);
 		}
 
 		// 選択されたステージの新しいディスクをメインのターンテーブルにロード
@@ -437,31 +461,33 @@ void StageSelect_Update(void)
 			std::wstring mainThumbPath = L"";
 			if (g_MaxStages > 0) {
 				mainThumbPath = GetThumbnailPath(g_ScoreSummaries[g_SelectedStage].thumbnail);
-			} else {
+			}
+			else {
 				mainThumbPath = L"asset\\texture\\notfound_thumbnail.png";
 			}
-			g_pMainVinyl = new Sprite2D(
-				{ (SCREEN_WIDTH / 2.0f) - 62.0f, (SCREEN_HEIGHT / 2.0f) + 2.0f },
-				{ 322.0f, 322.0f },
-				g_VinylRotation, // テクスチャの回転がカクつかないように現在の回転角度を維持
+			g_pMainShield = new Sprite2D(
+				{ (SCREEN_WIDTH / 2.0f) - 30.0f , (SCREEN_HEIGHT / 2.0f) + 10.0f },
+				{ 250.0f, 250.0f },
+				g_ShieldRotation, // テクスチャの回転がカクつかないように現在の回転角度を維持
 				{ 1.0f, 1.0f, 1.0f, 1.0f },
 				BLENDSTATE_ALFA,
 				mainThumbPath.c_str()
 			);
 		}
 
-		// ディスク交換直後、トーンアームを新しいディスクに降下させる状態に移行
-		g_CurrentState = STATE_DROPPING_ARM;
+		// 盾の切り替え完了直後に、新しい盾に剣を突き刺すステートに移行
+		g_CurrentState = STATE_PLUNGING_SWORD;
 		break;
 
-	case STATE_DROPPING_ARM:
-		// トーンアームが外側から新しいディスクへ徐々に降下（角度を0度へ戻す）
-		if (g_ToneArmAngle > 0.0f) {
-			g_ToneArmAngle -= 1.0f;
+	case STATE_PLUNGING_SWORD:
+		// 剣を新しい盾に突き刺す（オフセット値を 0 に向かって減らす）
+		if (g_SwordLiftOffset > 0.0f) {
+			g_SwordLiftOffset -= 15.0f;
+			if (g_SwordLiftOffset < 0.0f) g_SwordLiftOffset = 0.0f;
 		}
 
-		// トーンアームがディスクに接触したら（<= 0度）、安定再生状態（PLAYING）に戻る
-		if (g_ToneArmAngle <= 0.0f) {
+		// 剣が完全に盾に刺さった瞬間（オフセットが0以下）、安定状態（PLAYING）のループに戻る
+		if (g_SwordLiftOffset <= 0.0f) {
 			g_CurrentState = STATE_PLAYING;
 			// ✅ Update/Refresh を呼び出す前に、g_SelectedStage に合わせて g_SelectedScoreIndex を同期する
 			// 切り替えたステージと一致する vinylIndex を持つ最初のスコアエントリを検索
@@ -479,23 +505,25 @@ void StageSelect_Update(void)
 	}
 
 	// --- パート 3: DirectXグラフィック変数へのパラメータ適用 ---
-	// 現在フレームの g_DiscSpeed に基づいてディスクの連続回転角度を計算
-	if (g_DiscSpeed > 0.0f) {
-		g_VinylRotation += g_DiscSpeed;
-		if (g_VinylRotation >= 360.0f) g_VinylRotation -= 360.0f;
+	// 現在のフレームにおける g_ShieldSpeed に基づき、メイン盾の継続的な回転角度を計算
+	if (g_ShieldSpeed > 0.0f) {
+		g_ShieldRotation += g_ShieldSpeed;
+		if (g_ShieldRotation >= 360.0f) g_ShieldRotation -= 360.0f;
 	}
 
-	// メインディスクの回転を更新
-	if (g_pMainVinyl != nullptr) {
-		g_pMainVinyl->SetRot(g_VinylRotation);
+	// Cập nhật xoay cho khiên chính
+	if (g_pMainShield != nullptr) {
+		g_pMainShield->SetRot(g_ShieldRotation);
 	}
-	if (g_pRecordFrame != nullptr) {
-		g_pRecordFrame->SetRot(g_VinylRotation);
+	if (g_pShieldFrame != nullptr) {
+		g_pShieldFrame->SetRot(g_ShieldRotation);
 	}
 
-	// トーンアームの回転/アーム角度を更新
-	if (g_pToneArm != nullptr) {
-		g_pToneArm->SetRot(g_ToneArmAngle);
+	// 剣の垂直スクロール移動を更新（オフセットが大きいほど、剣がより高く引き上げられる）
+	// 注意：ご使用の環境でY座標が下向きではなく上向きに増加する場合は、符号をマイナスからプラスに変更してください。
+	if (g_pSword != nullptr) {
+		float diagonalOffset = g_SwordLiftOffset * SWORD_DIAGONAL_FACTOR;
+		g_pSword->SetPos({ g_SwordBaseX + diagonalOffset, g_SwordBaseY - diagonalOffset });
 	}
 
 	// --- パート 4: 左側の小さなディスク列の処理 ＆ マウスクリック ---
@@ -511,20 +539,20 @@ void StageSelect_Update(void)
 		float posX = (SCREEN_WIDTH / 2.0f) - 550.0f;
 		float posY = anchorY + (offset * spacing);
 
-		g_pStageDisks[i]->SetPos({ posX, posY });
+		g_pStageShields[i]->SetPos({ posX, posY });
 
 		// 選択中のディスク ＝ オフセットが0に最も近いディスク
 		if (i == g_SelectedStage) {
-			g_pStageDisks[i]->SetRotation(g_VinylRotation * 2.0f);
+			g_pStageShields[i]->SetRotation(g_ShieldRotation * 2.0f);
 		}
 		else {
-			g_pStageDisks[i]->SetRotation(0.0f);
+			g_pStageShields[i]->SetRotation(0.0f);
 		}
 
-		if (g_pStageDisks[i]->IsClick() && g_CurrentState == STATE_PLAYING && g_SelectedStage != i)
+		if (g_pStageShields[i]->IsClick() && g_CurrentState == STATE_PLAYING && g_SelectedStage != i)
 		{
 			g_NextStage = i;
-			g_CurrentState = STATE_LIFTING_ARM;
+			g_CurrentState = STATE_PULLING_SWORD;
 			if (g_pCurrentBgmData != nullptr) {
 				StopSound(g_pCurrentBgmData);
 			}
@@ -560,12 +588,24 @@ void StageSelect_Draw(void)
 {
 	if (g_pResultBG != nullptr) g_pResultBG->Draw();
 	g_pBackground->Draw(); // 1. 最背面にレコードプレーヤーの背景を描画
-	g_pMainVinyl->Draw(); // 3. 画面中央のメインディスクを描画
-	if (g_pRecordFrame != nullptr) g_pRecordFrame->Draw();
-	g_pToneArm->Draw();   // 4. メインディスクの上に重なるようにトーンアームを描画
+	g_pSword->Draw();      // 4. メイン盾の上に覆いかぶさるように、剣の抜き差し（移動）を描画
+
+	g_pMainShield->Draw(); // 3. 画面中央のメイン回転盾を描画
+	if (g_pShieldFrame != nullptr) g_pShieldFrame->Draw();
 	// 2. 左側のすべての小さなディスクを描画
-	for (int i = 0; i < g_MaxStages; i++) {
-		if (g_pStageDisks[i] != nullptr) g_pStageDisks[i]->Draw();
+	for (int i = 0; i < g_MaxStages; i++)
+	{
+		if (g_pStageShields[i] != nullptr)
+		{
+			g_pStageShields[i]->Draw();
+			// 続いて、該当する画像の座標と回転角度に正確に追従するように、重ねて外枠を描画する
+			if (g_pSmallShieldFrame != nullptr)
+			{
+				g_pSmallShieldFrame->SetPos(g_pStageShields[i]->GetPos()); // 同一のX, Y座標を適用
+				g_pSmallShieldFrame->SetRot(g_pStageShields[i]->GetRot()); // 同一の回転角度を適用（回転する場合）
+				g_pSmallShieldFrame->Draw(); // 最前面に重ねて描画
+			}
+		}
 	}
 
 	g_pScoreInfoText->Draw(); // 5. 最前面の右上に曲情報とスコアのJSONテキストを描画
@@ -589,15 +629,16 @@ void StageSelect_Finalize(void)
 
 	SAFE_DELETE(g_pResultBG);
 	SAFE_DELETE(g_pBackground);
-	SAFE_DELETE(g_pMainVinyl);
-	SAFE_DELETE(g_pRecordFrame);
-	SAFE_DELETE(g_pToneArm);
+	SAFE_DELETE(g_pMainShield);
+	SAFE_DELETE(g_pShieldFrame);
+	SAFE_DELETE(g_pSword);
 	SAFE_DELETE(g_pScoreInfoText);
+	SAFE_DELETE(g_pSmallShieldFrame); // <--- 新規追加
 
 	for (int i = 0; i < g_MaxStages; i++) {
-		SAFE_DELETE(g_pStageDisks[i]);
+		SAFE_DELETE(g_pStageShields[i]);
 	}
-	g_pStageDisks.clear();
+	g_pStageShields.clear();
 
 	g_ScoreSummaries.clear();
 

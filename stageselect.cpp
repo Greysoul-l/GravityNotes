@@ -335,7 +335,7 @@ void StageSelect_Initialize(void)
 	g_ShieldSpeed = 0.5f;
 
 	g_pStartGameBG = new Sprite2D(
-		{ 1068.0f, 612.0f },
+		{ 1068.0f, 612.0f},
 		{ 85 * 4, 39 * 4 },
 		0.0f,
 		{ 1.0f, 1.0f, 1.0f, 1.0f },

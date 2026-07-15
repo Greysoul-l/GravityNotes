@@ -48,6 +48,7 @@ private:
 	bool      m_RainbowSePlaying = false;
 	EnemyDefeatEffect* m_pEnemyDefeatEffect = nullptr;
 	OrbCollectEffect* m_pOrbCollectEffect = nullptr;
+	RopeHoldNote* m_HoldingRope = nullptr;
 
 	std::queue<JUDGE> m_PendingJudges;
 	std::queue<ORB_EVENT> m_PendingOrbEvents;
@@ -89,7 +90,7 @@ public:
 	JUDGE JudgeHold(int lane, int face);
 	JUDGE OnButtonRelease(int lane, int face);
 
-	RopeHoldNote* GetHoldingRope();
+	RopeHoldNote* GetHoldingRope() const { return m_HoldingRope; }
 
 	bool  HasPendingJudge()  const { return !m_PendingJudges.empty(); }
 	JUDGE PopPendingJudge()        { JUDGE j = m_PendingJudges.front(); m_PendingJudges.pop(); return j; }

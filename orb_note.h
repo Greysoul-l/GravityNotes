@@ -15,6 +15,8 @@ public:
 	OrbNote() : NoteBase(), m_pBillboard(nullptr), m_AnimTimer(0.0f) {}
 	~OrbNote();
 
+	NoteType GetType() const override { return NoteType::Orb; }
+
 	void Init(int lane, int face, float spawnZ, float speed);
 	void Update() override;
 	void Draw() override;

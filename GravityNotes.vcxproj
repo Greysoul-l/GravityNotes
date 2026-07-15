@@ -308,6 +308,7 @@
     <ClInclude Include="shader\renderer.h" />
     <ClInclude Include="status_manager.h" />
     <ClInclude Include="title.h" />
+    <ClInclude Include="version.h" />
   </ItemGroup>
   <ItemGroup>
     <None Include="framework\DirectXTex.inl" />
@@ -710,4 +711,3 @@
     <Exec Command="powershell -ExecutionPolicy Bypass -Command &quot;if (Test-Path '$(VersionFilePath)') { $v = (Get-Content '$(VersionFilePath)' -Raw).Trim() } else { $v = 'unknown' }; $content = '#pragma once' + [Environment]::NewLine + '#define VERSION_STR L\&quot;v' + $v + '\&quot;' + [Environment]::NewLine; [System.IO.File]::WriteAllText('$(HeaderFilePath)', $content, (New-Object System.Text.UTF8Encoding($true)))&quot;" />
   </Target>
 </Project>
-

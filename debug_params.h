@@ -32,6 +32,7 @@ namespace ReleaseConfig
     constexpr float comboMultiplier = 0.1f;
     constexpr int   orbHealAmount = 30;
     constexpr float orbJudgeWindow = -0.5f;
+    constexpr float rainbowCornerSoftness = 0.35f;
 
     // 各面のカメラオフセット（Yaw, Pitch, PosX, PosY, PosZ）
     constexpr CameraFaceOffset cameraOffsets[4] = {
@@ -61,7 +62,12 @@ struct DebugParams
 
     // オーブ
     int   orbHealAmount     = 30;     // オーブ取得時のHP回復量
-    float orbJudgeWindow    = -0.5f;   // オーブの早期HIT判定を開始する追加Z距離（HIT_ZONE_Zに加算。値を大きくするほどプレイヤーから遠い位置で取得判定になり、見た目の取得位置が胴側に上がる）
+    float orbJudgeWindow    = -2.0f;   // オーブの早期HIT判定を開始する追加Z距離（HIT_ZONE_Zに加算。値を大きくするほどプレイヤーから遠い位置で取得判定になり、見た目の取得位置が胴側に上がる）
+
+    // レインボー（ロープホールド）
+    // コーナー制御点を角(0.0)〜中点(1.0)の間でブレンドし、カーブの鋭さを緩和する。
+    // 回転数が多いノーツほど1セグメントの奥行きが短くなり、値が0だとリボンが壁/床に埋まって見えやすい。
+    float rainbowCornerSoftness = 0.5f;
 
     // カメラの面ごとオフセット
     CameraFaceOffset cameraOffsets[4] = {
@@ -97,6 +103,7 @@ struct DebugParams
             j["comboMultiplier"] = comboMultiplier;
             j["orbHealAmount"] = orbHealAmount;
             j["orbJudgeWindow"] = orbJudgeWindow;
+            j["rainbowCornerSoftness"] = rainbowCornerSoftness;
 
             // JSONへのカメラオフセット出力は全廃止
 
@@ -207,6 +214,7 @@ struct DebugParams
                 comboMultiplier = j.value("comboMultiplier", comboMultiplier);
                 orbHealAmount = j.value("orbHealAmount", orbHealAmount);
                 orbJudgeWindow = j.value("orbJudgeWindow", orbJudgeWindow);
+                rainbowCornerSoftness = j.value("rainbowCornerSoftness", rainbowCornerSoftness);
             }
 
             // カメラオフセットはテキストファイルから読み込む
@@ -236,6 +244,7 @@ private:
         comboMultiplier = ReleaseConfig::comboMultiplier;
         orbHealAmount = ReleaseConfig::orbHealAmount;
         orbJudgeWindow = ReleaseConfig::orbJudgeWindow;
+        rainbowCornerSoftness = ReleaseConfig::rainbowCornerSoftness;
         for (int i = 0; i < 4; i++) cameraOffsets[i] = ReleaseConfig::cameraOffsets[i];
 #endif
     }

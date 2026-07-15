@@ -87,6 +87,9 @@ struct MODEL
 	// ノード名からアニメーションチャンネルインデックスへのマッピング
 	std::unordered_map<std::string, int> NodeToAnimIndex;
 
+	// アニメーションクリップのキャッシュ
+	std::unordered_map<std::string, AnimationClip*> AnimationClips;
+
 	int RefCount = 0;			// 参照カウンタ
 	std::string FilePath;		// キャッシュ識別用のファイルパス
 };

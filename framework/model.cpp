@@ -1360,6 +1360,13 @@ void ModelRelease(MODEL* model)
 	if (model->BlackTexture)
 		model->BlackTexture->Release();
 
+	// アニメーションキャッシュの破棄
+	for (std::pair<const std::string, AnimationClip*> pair : model->AnimationClips)
+	{
+		delete pair.second;
+	}
+	model->AnimationClips.clear();
+
 	if (model->AiScene)
 		aiReleaseImport(model->AiScene);
 

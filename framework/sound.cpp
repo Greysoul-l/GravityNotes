@@ -20,7 +20,9 @@ namespace
         std::transform(lower.begin(), lower.end(), lower.begin(), [](unsigned char c) {
             return static_cast<char>(tolower(c));
         });
-        return ContainsTokenLower(lower, "\\bgm\\") || ContainsTokenLower(lower, "/bgm/");
+        return ContainsTokenLower(lower, "\\bgm\\") || ContainsTokenLower(lower, "/bgm/") ||
+               ContainsTokenLower(lower, "\\music\\") || ContainsTokenLower(lower, "/music/") ||
+               ContainsTokenLower(lower, "\\score\\") || ContainsTokenLower(lower, "/score/");
     }
 
     bool IsBGMPath(const wchar_t* filename)
@@ -31,7 +33,11 @@ namespace
             return static_cast<wchar_t>(towlower(c));
         });
         return (lower.find(L"\\bgm\\") != std::wstring::npos) ||
-            (lower.find(L"/bgm/") != std::wstring::npos);
+            (lower.find(L"/bgm/") != std::wstring::npos) ||
+            (lower.find(L"\\music\\") != std::wstring::npos) ||
+            (lower.find(L"/music/") != std::wstring::npos) ||
+            (lower.find(L"\\score\\") != std::wstring::npos) ||
+            (lower.find(L"/score/") != std::wstring::npos);
     }
 
     float ClampVolume(float volume)
@@ -105,20 +111,37 @@ SoundData* LoadMP3(const wchar_t* filename) {
 	std::string pathStr = SoundPathToString(filename);
 	bool isBGM = IsBGMPath(filename);
 
+	// ファイル名（小文字）の抽出
+	size_t lastSlash = path.find_last_of(L"\\/");
+	std::wstring fileName = (lastSlash == std::wstring::npos) ? path : path.substr(lastSlash + 1);
+	std::transform(fileName.begin(), fileName.end(), fileName.begin(), ::towlower);
+
+	// ファイルサイズの取得 (Windows API)
+	LONGLONG fileSize = 0;
+	WIN32_FILE_ATTRIBUTE_DATA fad;
+	if (GetFileAttributesExW(filename, GetFileExInfoStandard, &fad)) {
+		LARGE_INTEGER size;
+		size.LowPart = fad.nFileSizeLow;
+		size.HighPart = fad.nFileSizeHigh;
+		fileSize = size.QuadPart;
+	}
+
+	std::wstring cacheKey = fileName + L"_" + std::to_wstring(fileSize);
+
 	if (isBGM)
 	{
 		SCENE currentScene = GetScene();
 		if (currentScene >= 0 && currentScene < SCENE_MAX)
 		{
-			auto globIt = g_GlobalSoundMap.find(path);
+			auto globIt = g_GlobalSoundMap.find(cacheKey);
 			if (globIt != g_GlobalSoundMap.end())
 			{
 				SoundData* cachedData = globIt->second.data;
 				
-				auto sceneIt = g_SoundCache[currentScene].find(path);
+				auto sceneIt = g_SoundCache[currentScene].find(cacheKey);
 				if (sceneIt == g_SoundCache[currentScene].end())
 				{
-					g_SoundCache[currentScene][path] = cachedData;
+					g_SoundCache[currentScene][cacheKey] = cachedData;
 					globIt->second.refCount++;
 					hal::dout << "[Sound Cache] SCENE " << currentScene << " BGM HIT (New scene ref): " << pathStr << " | refCount: " << globIt->second.refCount << std::endl;
 				}
@@ -231,8 +254,8 @@ SoundData* LoadMP3(const wchar_t* filename) {
 		SCENE currentScene = GetScene();
 		if (currentScene >= 0 && currentScene < SCENE_MAX)
 		{
-			g_GlobalSoundMap[path] = { data, 1 };
-			g_SoundCache[currentScene][path] = data;
+			g_GlobalSoundMap[cacheKey] = { data, 1 };
+			g_SoundCache[currentScene][cacheKey] = data;
 			hal::dout << "[Sound Cache] SCENE " << currentScene << " BGM MISS (Loaded & Registered): " << pathStr << " | refCount: 1" << std::endl;
 		}
 	}

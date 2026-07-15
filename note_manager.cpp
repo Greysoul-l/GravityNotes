@@ -20,6 +20,35 @@ static const float PASSIVE_ZONE_Z = 0.5f; // Orb・Barrier の自動判定Z
 static const float HIT_WINDOW     = 2.5f;
 static const float ROPE_ACTIVATE_WINDOW = 0.5f; // レインボーはプレイヤーの足元でのみ活性化（PASSIVE_ZONE_Z基準）
 
+// startFace→endFaceの経由面リストを構築する。
+// face番号は 床(0)→左壁(1)→天井(2)→右壁(3)→床(0) の順で隣接しており、+1方向がCW、-1方向がCCW。
+// hasDirection=false の場合は従来互換の最短経路（2面差＝正面はCW側を採用）
+static std::vector<int> BuildRainbowFacePath(int startFace, int endFace, bool hasDirection, RotationDir direction)
+{
+	std::vector<int> path;
+	path.push_back(startFace);
+	if (startFace == endFace) return path;
+
+	int step;
+	if (hasDirection)
+	{
+		step = (direction == RotationDir::CW) ? 1 : -1;
+	}
+	else
+	{
+		int diffCW = ((endFace - startFace) % 4 + 4) % 4;
+		step = (diffCW <= 2) ? 1 : -1; // 対面（2面差）はCW側を既定とする
+	}
+
+	int face = startFace;
+	while (face != endFace)
+	{
+		face = ((face + step) % 4 + 4) % 4;
+		path.push_back(face);
+	}
+	return path;
+}
+
 // beat を「そのノーツをスポーンすべき時刻（秒）」に変換
 float NoteManager::BeatToAudioTime(float beat) const
 {
@@ -51,7 +80,7 @@ JUDGE NoteManager::JudgeByDistance(NoteBase* note, float targetZ)
 	if (dist >= HIT_WINDOW) return JUDGE_NONE;
 
 	// エネミーが消える前の座標を使って撃破パーティクルを生成する。
-	if (m_pEnemyDefeatEffect && dynamic_cast<EnemyNote*>(note))
+	if (m_pEnemyDefeatEffect && note->GetType() == NoteType::Enemy)
 		m_pEnemyDefeatEffect->Spawn(note->GetPos(), note->GetFace());
 
 	note->OnHit();
@@ -74,6 +103,7 @@ void NoteManager::Init(const std::string& scoreFilePath)
 	m_FadeOutDuration = 0.0f;
 	m_FadeOutTimer   = 0.0f;
 	m_FadeOutStartVolume = 1.0f;
+	m_HoldingRope    = nullptr;
 
 	m_ScoreData = LoadScore(scoreFilePath);
 
@@ -188,7 +218,17 @@ void NoteManager::Update(int playerLane, int playerFace)
 			}
 			else
 			{
-				m_ElapsedTime = (float)GetPlaybackPositionSec(m_pBgmData);
+				static int syncCounter = 0;
+				syncCounter++;
+				if (syncCounter >= 10)
+				{
+					m_ElapsedTime = (float)GetPlaybackPositionSec(m_pBgmData);
+					syncCounter = 0;
+				}
+				else
+				{
+					m_ElapsedTime += dt;
+				}
 			}
 		}
 		else
@@ -241,7 +281,7 @@ void NoteManager::Update(int playerLane, int playerFace)
 			float endZ       = (endHitTime - m_ElapsedTime) * m_NoteSpeed + HIT_ZONE_Z;
 
 			HoldNote* note = new HoldNote();
-			note->Init(ev.lane, ev.endLane, face, initZ, endZ, m_NoteSpeed, m_ScoreData.bpm);
+			note->Init(ev.lane, ev.endLane, face, initZ, endZ, m_NoteSpeed, m_ScoreData.bpm, ev.beat, ev.endBeat);
 			m_Notes.push_back(note);
 			break;
 		}
@@ -252,8 +292,10 @@ void NoteManager::Update(int playerLane, int playerFace)
 			int   endFace     = WallToFace(ev.endWall);
 			int   gameEndLane = ev.endLane - 1;
 
+			std::vector<int> facePath = BuildRainbowFacePath(face, endFace, ev.hasDirection, ev.direction);
+
 			RopeHoldNote* note = AcquireRope();
-			note->Init(gameLane, gameEndLane, face, endFace, initZ, endZ, m_NoteSpeed);
+			note->Init(gameLane, gameEndLane, facePath, initZ, endZ, m_NoteSpeed);
 			m_Notes.push_back(note);
 			break;
 		}
@@ -275,8 +317,9 @@ void NoteManager::Update(int playerLane, int playerFace)
 			// Orb: HIT_ZONE_Zよりorb JudgeWindow分手前（Z値が大きい＝プレイヤーから遠い）からHIT判定を開始する。
 			// プレイヤーの足元(z=0付近)まで引き寄せず、胴あたりの高さで消えているように見せるための猶予。
 			// Miss確定ラインは HIT_ZONE_Z - HIT_WINDOW のまま変えない（近すぎるところまで表示され続けるのを防ぐ）
-			if (OrbNote* orb = dynamic_cast<OrbNote*>(m_Notes[i]))
+			if (m_Notes[i]->GetType() == NoteType::Orb)
 			{
+				OrbNote* orb = static_cast<OrbNote*>(m_Notes[i]);
 				if (z <= HIT_ZONE_Z + D_PARAMS.orbJudgeWindow)
 				{
 					if (m_Notes[i]->GetLaneIndex() == playerLane &&
@@ -300,8 +343,9 @@ void NoteManager::Update(int playerLane, int playerFace)
 				}
 			}
 			// Barrier: タイミングはEnemyノーツと一緒（z < HIT_ZONE_Z - HIT_WINDOW）
-			else if (BarrierNote* barrier = dynamic_cast<BarrierNote*>(m_Notes[i]))
+			else if (m_Notes[i]->GetType() == NoteType::Barrier)
 			{
+				BarrierNote* barrier = static_cast<BarrierNote*>(m_Notes[i]);
 				if (z < HIT_ZONE_Z - HIT_WINDOW)
 				{
 					float beat = barrier->GetBeat();
@@ -326,8 +370,8 @@ void NoteManager::Update(int playerLane, int playerFace)
 			}
 			// Enemy: 判定窓を通過したら押し逃しMiss
 			// HoldNote・RopeHoldNote は自身で Miss 処理するのでスキップ
-			else if (!dynamic_cast<HoldNote*>(m_Notes[i]) &&
-			         !dynamic_cast<RopeHoldNote*>(m_Notes[i]) &&
+			else if (m_Notes[i]->GetType() != NoteType::Hold &&
+			         m_Notes[i]->GetType() != NoteType::RopeHold &&
 			         z < HIT_ZONE_Z - HIT_WINDOW)
 			{
 				m_Notes[i]->OnMiss();
@@ -338,10 +382,15 @@ void NoteManager::Update(int playerLane, int playerFace)
 		if (!m_Notes[i]->IsActive())
 		{
 			// RopeHoldNote 完了時のスコアをキューに積む
-			if (RopeHoldNote* rope = dynamic_cast<RopeHoldNote*>(m_Notes[i]))
+			if (m_Notes[i]->GetType() == NoteType::RopeHold)
 			{
+				RopeHoldNote* rope = static_cast<RopeHoldNote*>(m_Notes[i]);
 				if (rope->GetState() == RopeHoldNote::State::COMPLETE)
 					m_PendingJudges.push(JUDGE_HIT);
+				if (m_HoldingRope == rope)
+				{
+					m_HoldingRope = nullptr;
+				}
 				ReleaseRope(rope);
 			}
 			else
@@ -353,7 +402,7 @@ void NoteManager::Update(int playerLane, int playerFace)
 	}
 
 	// RopeHoldNote (Rainbow) の再生・フェードアウト制御
-	RopeHoldNote* holdingRope = GetHoldingRope();
+	RopeHoldNote* holdingRope = m_HoldingRope;
 	if (holdingRope != nullptr)
 	{
 		if (!m_RainbowSePlaying)
@@ -410,8 +459,8 @@ void NoteManager::Draw()
 	// 不透明ノーツを先に描き、透過Orbは深度ソート用に分ける。
 	for (NoteBase* note : m_Notes)
 	{
-		if (OrbNote* orb = dynamic_cast<OrbNote*>(note))
-			sortedOrbs.push_back(orb);
+		if (note->GetType() == NoteType::Orb)
+			sortedOrbs.push_back(static_cast<OrbNote*>(note));
 		else
 			note->Draw();
 	}
@@ -441,7 +490,8 @@ void NoteManager::DrawShadowMapForFace(int face, const XMMATRIX& lightView, cons
 	{
 		if (!note->IsActive() || note->IsHit()) continue;
 		if (note->GetFace() != face) continue;
-		if (dynamic_cast<EnemyNote*>(note) || dynamic_cast<OrbNote*>(note))
+		NoteType type = note->GetType();
+		if (type == NoteType::Enemy || type == NoteType::Orb)
 		{
 			note->DrawShadowMap(lightView, lightProjection);
 		}
@@ -465,12 +515,13 @@ void NoteManager::Finalize()
 		m_pRainbowSe = nullptr;
 	}
 	m_RainbowSePlaying = false;
+	m_HoldingRope = nullptr;
 
 	for (NoteBase* note : m_Notes)
 	{
-		if (RopeHoldNote* rope = dynamic_cast<RopeHoldNote*>(note))
+		if (note->GetType() == NoteType::RopeHold)
 		{
-			ReleaseRope(rope);
+			ReleaseRope(static_cast<RopeHoldNote*>(note));
 		}
 		else
 		{
@@ -507,9 +558,10 @@ JUDGE NoteManager::Judge(int lane, int face)
 	{
 		if (!note->IsActive() || note->IsHit()) continue;
 		if (!IsSameOrCornerPosition(note->GetLaneIndex(), note->GetFace(), lane, face)) continue;
-		if (dynamic_cast<OrbNote*>(note) || dynamic_cast<BarrierNote*>(note)) continue;
-		if (dynamic_cast<RopeHoldNote*>(note)) continue; // ロープホールドは別扱い
-		if (dynamic_cast<HoldNote*>(note)) continue;     // Hold本体は非対象（子ノートで判定）
+		NoteType type = note->GetType();
+		if (type == NoteType::Orb || type == NoteType::Barrier) continue;
+		if (type == NoteType::RopeHold) continue; // ロープホールドは別扱い
+		if (type == NoteType::Hold) continue;     // Hold本体は非対象（子ノートで判定）
 
 		float dist = fabsf(note->GetPosZ() - HIT_ZONE_Z);
 		if (dist < bestDist)
@@ -527,8 +579,8 @@ JUDGE NoteManager::Judge(int lane, int face)
 	// HoldNote（連撃）の最初の一撃はKeyTriggerで取る
 	for (NoteBase* note : m_Notes)
 	{
-		HoldNote* hold = dynamic_cast<HoldNote*>(note);
-		if (!hold || !hold->IsActive()) continue;
+		if (note->GetType() != NoteType::Hold || !note->IsActive()) continue;
+		HoldNote* hold = static_cast<HoldNote*>(note);
 
 		EnemyNote* child = hold->GetNearestActiveChild(lane, face);
 		if (!child) continue;
@@ -545,14 +597,16 @@ JUDGE NoteManager::JudgeHold(int lane, int face)
 	// RopeHoldNote: 足元（PASSIVE_ZONE_Z）に来た時だけKeyDownで活性化（スコアは完了時に加算）
 	for (NoteBase* note : m_Notes)
 	{
-		RopeHoldNote* rope = dynamic_cast<RopeHoldNote*>(note);
-		if (!rope || rope->GetState() != RopeHoldNote::State::IDLE) continue;
+		if (note->GetType() != NoteType::RopeHold) continue;
+		RopeHoldNote* rope = static_cast<RopeHoldNote*>(note);
+		if (rope->GetState() != RopeHoldNote::State::IDLE) continue;
 		if (rope->GetLaneIndex() != lane || rope->GetFace() != face) continue;
 
 		float dist = fabsf(rope->GetPosZ() - PASSIVE_ZONE_Z);
 		if (dist < ROPE_ACTIVATE_WINDOW)
 		{
 			rope->Activate();
+			m_HoldingRope = rope;
 			return JUDGE_NONE; // 活性化のみ。スコアは Complete 時に PendingJudge で加算
 		}
 	}
@@ -560,16 +614,17 @@ JUDGE NoteManager::JudgeHold(int lane, int face)
 	// RopeHoldNote が HOLDING 中はスコア加算なし（完了時に PendingJudge で加算）
 	for (NoteBase* note : m_Notes)
 	{
-		RopeHoldNote* rope = dynamic_cast<RopeHoldNote*>(note);
-		if (rope && rope->GetState() == RopeHoldNote::State::HOLDING)
+		if (note->GetType() != NoteType::RopeHold) continue;
+		RopeHoldNote* rope = static_cast<RopeHoldNote*>(note);
+		if (rope->GetState() == RopeHoldNote::State::HOLDING)
 			return JUDGE_NONE;
 	}
 
 	// HoldNote（連撃）の継続判定（KeyDown）
 	for (NoteBase* note : m_Notes)
 	{
-		HoldNote* hold = dynamic_cast<HoldNote*>(note);
-		if (!hold || !hold->IsActive()) continue;
+		if (note->GetType() != NoteType::Hold || !note->IsActive()) continue;
+		HoldNote* hold = static_cast<HoldNote*>(note);
 
 		EnemyNote* child = hold->GetNearestActiveChild(lane, face);
 		if (!child) continue;
@@ -580,26 +635,20 @@ JUDGE NoteManager::JudgeHold(int lane, int face)
 	return JUDGE_NONE; // HoldNote が存在しない／範囲外のときは何もしない
 }
 
-RopeHoldNote* NoteManager::GetHoldingRope()
-{
-	for (NoteBase* note : m_Notes)
-	{
-		RopeHoldNote* rope = dynamic_cast<RopeHoldNote*>(note);
-		if (rope && rope->GetState() == RopeHoldNote::State::HOLDING)
-			return rope;
-	}
-	return nullptr;
-}
-
 JUDGE NoteManager::OnButtonRelease(int lane, int face)
 {
 	for (NoteBase* note : m_Notes)
 	{
-		RopeHoldNote* rope = dynamic_cast<RopeHoldNote*>(note);
-		if (!rope || rope->GetState() != RopeHoldNote::State::HOLDING) continue;
+		if (note->GetType() != NoteType::RopeHold) continue;
+		RopeHoldNote* rope = static_cast<RopeHoldNote*>(note);
+		if (rope->GetState() != RopeHoldNote::State::HOLDING) continue;
 
 		float progress = rope->GetHoldProgress();
 		rope->Release();
+		if (m_HoldingRope == rope)
+		{
+			m_HoldingRope = nullptr;
+		}
 		return (progress >= 0.5f) ? JUDGE_HIT : JUDGE_MISS;
 	}
 	return JUDGE_NONE;
@@ -633,8 +682,9 @@ bool NoteManager::CheckAndHitBarrier(int fromLane, int fromFace, int toLane, int
 	// 1. 移動元にバリアがあるかチェック（回避成功）
 	for (NoteBase* note : m_Notes)
 	{
-		BarrierNote* barrier = dynamic_cast<BarrierNote*>(note);
-		if (!barrier || !barrier->IsActive() || barrier->IsHit()) continue;
+		if (note->GetType() != NoteType::Barrier) continue;
+		BarrierNote* barrier = static_cast<BarrierNote*>(note);
+		if (!barrier->IsActive() || barrier->IsHit()) continue;
 		// 回避成功判定のみ角ペアを許容（被弾判定は完全一致のまま）
 		if (!IsSameOrCornerPosition(barrier->GetLaneIndex(), barrier->GetFace(), fromLane, fromFace)) continue;
 
@@ -656,8 +706,9 @@ bool NoteManager::CheckAndHitBarrier(int fromLane, int fromFace, int toLane, int
 	// 2. 移動先にバリアがあるかチェック（被弾）
 	for (NoteBase* note : m_Notes)
 	{
-		BarrierNote* barrier = dynamic_cast<BarrierNote*>(note);
-		if (!barrier || !barrier->IsActive() || barrier->IsHit()) continue;
+		if (note->GetType() != NoteType::Barrier) continue;
+		BarrierNote* barrier = static_cast<BarrierNote*>(note);
+		if (!barrier->IsActive() || barrier->IsHit()) continue;
 		if (barrier->GetLaneIndex() != toLane || barrier->GetFace() != toFace) continue;
 
 		float dist = fabsf(barrier->GetPosZ() - HIT_ZONE_Z);
@@ -675,12 +726,13 @@ bool NoteManager::CheckAndHitBarrier(int fromLane, int fromFace, int toLane, int
 
 void NoteManager::ResetPlayPosition()
 {
+	m_HoldingRope = nullptr;
 	// 1. アクティブなノーツの削除
 	for (NoteBase* note : m_Notes)
 	{
-		if (RopeHoldNote* rope = dynamic_cast<RopeHoldNote*>(note))
+		if (note->GetType() == NoteType::RopeHold)
 		{
-			ReleaseRope(rope);
+			ReleaseRope(static_cast<RopeHoldNote*>(note));
 		}
 		else
 		{

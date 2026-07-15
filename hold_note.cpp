@@ -25,7 +25,7 @@ HoldNote::~HoldNote()
 	m_ChildNotes.clear();
 }
 
-void HoldNote::Init(int lane, int endLane, int face, float initZ, float endZ, float speed, float bpm)
+void HoldNote::Init(int lane, int endLane, int face, float initZ, float endZ, float speed, float bpm, float beat, float endBeat)
 {
 	m_Face     = face;
 	m_Speed    = speed;
@@ -39,8 +39,10 @@ void HoldNote::Init(int lane, int endLane, int face, float initZ, float endZ, fl
 	// 1子ノートあたりのZ間隔 = beat間隔(拍) × (60秒/bpm) × speed
 	float zStep = HOLD_BEAT_INTERVAL * (60.0f / bpm) * speed;
 
-	// 始点〜終点をzStepで分割して子ノート数を決定
-	int totalSteps = (zStep > 0.0f) ? (int)ceilf((endZ - initZ) / zStep) + 1 : 2;
+	// 始点〜終点を拍数ベースで分割して子ノート数を決定（Z座標ベースだと同期ズレの誤差影響を受けるため）
+	float diffBeat = endBeat - beat;
+	float stepVal = diffBeat / HOLD_BEAT_INTERVAL;
+	int totalSteps = (stepVal > 0.0f) ? (int)ceilf(stepVal) + 1 : 2;
 	if (totalSteps < 2) totalSteps = 2;
 
 	for (int i = 0; i < totalSteps; i++)

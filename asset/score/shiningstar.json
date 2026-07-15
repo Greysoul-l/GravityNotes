@@ -135,14 +135,6 @@
       "lane": 1
     },
     {
-      "beat": 16.0,
-      "type": "Rainbow",
-      "wall": "Up",
-      "lane": 1,
-      "endBeat": 19.0,
-      "endWall": "Down"
-    },
-    {
       "beat": 24.0,
       "type": "Hold",
       "wall": "Down",
@@ -239,6 +231,60 @@
       "type": "Orb",
       "wall": "Down",
       "lane": 1
+    },
+    {
+      "beat": 16.0,
+      "type": "Rainbow",
+      "wall": "Up",
+      "lane": 1,
+      "endBeat": 19.0,
+      "endWall": "Down",
+      "direction": "CCW"
+    },
+    {
+      "beat": 32.0,
+      "type": "Rainbow",
+      "wall": "Down",
+      "lane": 1,
+      "endBeat": 36.0,
+      "endWall": "Up",
+      "direction": "CW"
+    },
+    {
+      "beat": 40.0,
+      "type": "Rainbow",
+      "wall": "Up",
+      "lane": 1,
+      "endBeat": 44.0,
+      "endWall": "Right",
+      "direction": "CCW"
+    },
+    {
+      "beat": 48.0,
+      "type": "Rainbow",
+      "wall": "Right",
+      "lane": 1,
+      "endBeat": 52.0,
+      "endWall": "Up",
+      "direction": "CW"
+    },
+    {
+      "beat": 56.0,
+      "type": "Rainbow",
+      "wall": "Up",
+      "lane": 1,
+      "endBeat": 60.0,
+      "endWall": "Right",
+      "direction": "CW"
+    },
+    {
+      "beat": 64.0,
+      "type": "Rainbow",
+      "wall": "Right",
+      "lane": 1,
+      "endBeat": 68.0,
+      "endWall": "Up",
+      "direction": "CCW"
     }
   ]
 }

@@ -2,6 +2,7 @@
 #include "define.h"
 #include <string>
 #include "sound.h"
+#include "game.h"
 
 // --- 仮置き定数（後で調整してください） ---
 //コンボ表示
@@ -207,18 +208,18 @@ void GameUI::Update(const StatusManager* pStatus, bool isHoldingRainbow)
 
     if (m_IsHoldingRainbow)
     {
-        m_WindCutAlpha += (1.0f / 0.24f) / FPS; // 約0.24秒でフェードイン
+        m_WindCutAlpha += (1.0f / 0.24f) * dt; // 約0.24秒でフェードイン
         if (m_WindCutAlpha > 1.0f) m_WindCutAlpha = 1.0f;
     }
     else
     {
-        m_WindCutAlpha -= (1.0f / 0.30f) / FPS; // 約0.30秒でフェードアウト
+        m_WindCutAlpha -= (1.0f / 0.30f) * dt; // 約0.30秒でフェードアウト
         if (m_WindCutAlpha < 0.0f) m_WindCutAlpha = 0.0f;
     }
 
     if (m_WindCutAlpha > 0.0f)
     {
-        m_WindCutAnimTimer += 1.0f / FPS;
+        m_WindCutAnimTimer += dt;
         int textureNumber = static_cast<int>(m_WindCutAnimTimer * 30.0f) % 30;
         if (m_pWindCutSprite)
         {
@@ -247,12 +248,12 @@ void GameUI::Update(const StatusManager* pStatus, bool isHoldingRainbow)
     }
 
     if (m_JudgeTimer > 0.0f)
-        m_JudgeTimer -= 1.0f / FPS;
+        m_JudgeTimer -= dt;
 
     // 終了時の透過フェードイン更新
     if (m_ShowEndOverlay && m_FadeTimer < m_FadeDuration)
     {
-        m_FadeTimer += 1.0f / FPS;
+        m_FadeTimer += dt;
         if (m_FadeTimer > m_FadeDuration)
             m_FadeTimer = m_FadeDuration;
 
@@ -264,7 +265,7 @@ void GameUI::Update(const StatusManager* pStatus, bool isHoldingRainbow)
     // ロゴ「ぽこん！」ポップアニメーション更新
     if (m_ShowLogos && m_LogoAnimTimer < m_LogoAnimDuration)
     {
-        m_LogoAnimTimer += 1.0f / FPS;
+        m_LogoAnimTimer += dt;
         if (m_LogoAnimTimer > m_LogoAnimDuration)
             m_LogoAnimTimer = m_LogoAnimDuration;
 

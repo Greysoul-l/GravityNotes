@@ -2,6 +2,7 @@
 #include "rainbow_note.h"
 #include "game.h"
 #include "debug_ostream.h"
+#include "debug_params.h"
 #include <algorithm>
 #include <cmath>
 
@@ -133,11 +134,11 @@ void RopeHoldNote::FinalizeSharedResources()
 	}
 }
 
-void RopeHoldNote::Init(int startLane, int endLane, int startFace, int endFace,
+void RopeHoldNote::Init(int startLane, int endLane, const std::vector<int>& facePath,
                         float startZ, float endZ, float speed)
 {
-	NoteBase::Init(startLane, startFace, startZ, speed, nullptr);
-	m_EndFace       = endFace;
+	NoteBase::Init(startLane, facePath.front(), startZ, speed, nullptr);
+	m_FacePath      = facePath;
 	m_EndLane       = endLane;
 	m_RopeLength    = endZ - startZ;
 	m_HoldProgress  = 0.0f;
@@ -146,6 +147,52 @@ void RopeHoldNote::Init(int startLane, int endLane, int startFace, int endFace,
 
 	if (!m_Texture)
 		m_Texture = LoadTexture(L"asset/texture/30ver.png");
+}
+
+// t(0~1) が属するセグメント（面ペア）とそのローカルtを求める
+void RopeHoldNote::ResolveSegment(float t, int& faceA, int& faceB, float& localT) const
+{
+	t = std::max(0.0f, std::min(t, 1.0f));
+	const int numSegments = std::max<int>(1, (int)m_FacePath.size() - 1);
+
+	int segIndex = (int)(t * numSegments);
+	if (segIndex >= numSegments) segIndex = numSegments - 1;
+
+	localT = t * numSegments - (float)segIndex;
+
+	if (m_FacePath.size() <= 1)
+	{
+		faceA = faceB = m_FacePath.front();
+		localT = 0.0f;
+		return;
+	}
+
+	faceA = m_FacePath[segIndex];
+	faceB = m_FacePath[segIndex + 1];
+}
+
+XMFLOAT2 RopeHoldNote::EvalCurveXY(float t) const
+{
+	int faceA, faceB; float localT;
+	ResolveSegment(t, faceA, faceB, localT);
+
+	XMFLOAT2 p0 = FaceToXY(faceA, 0);
+	if (faceA == faceB) return p0;
+
+	XMFLOAT2 p2 = FaceToXY(faceB, 0);
+	XMFLOAT2 corner = CornerXY(faceA, faceB);
+	// コーナー制御点を角(softness=0)〜p0-p2の中点(softness=1)の間でブレンドし、
+	// カーブの鋭さを緩和する（回転数が多くセグメントが短いノーツほど効果が大きい）
+	XMFLOAT2 mid = Lerp2(p0, p2, 0.5f);
+	XMFLOAT2 p1  = Lerp2(corner, mid, D_PARAMS.rainbowCornerSoftness);
+	return QuadBezier(p0, p1, p2, localT);
+}
+
+XMFLOAT2 RopeHoldNote::EvalNormal(float t) const
+{
+	int faceA, faceB; float localT;
+	ResolveSegment(t, faceA, faceB, localT);
+	return Norm2(Lerp2(FaceNormal(faceA), FaceNormal(faceB), localT));
 }
 
 void RopeHoldNote::Update()
@@ -177,15 +224,7 @@ void RopeHoldNote::Draw()
 	const float distTraveled = m_InitialSpawnZ - m_Position.z;
 	const int   baseTile     = (int)(distTraveled / tileZWidth);
 
-	const bool isStraight = (m_Face == m_EndFace);
-
-	XMFLOAT2 p0 = FaceToXY(m_Face, 0);
-	XMFLOAT2 p2 = isStraight ? p0 : FaceToXY(m_EndFace, 0);
-	XMFLOAT2 p1 = isStraight ? p0 : CornerXY(m_Face, m_EndFace);
 	float halfWidth = TUNNEL_HALF;
-
-	XMFLOAT2 n0 = FaceNormal(m_Face);
-	XMFLOAT2 n2 = FaceNormal(m_EndFace);
 
 	const float drawNear = (m_State == State::HOLDING)
 		? ROPE_START_ZONE_Z
@@ -216,11 +255,11 @@ void RopeHoldNote::Draw()
 			float t0 = std::max(0.0f, std::min((z0s - m_Position.z) / m_RopeLength, 1.0f));
 			float t1 = std::max(0.0f, std::min((z1s - m_Position.z) / m_RopeLength, 1.0f));
 
-			XMFLOAT2 xy0 = QuadBezier(p0, p1, p2, t0);
-			XMFLOAT2 xy1 = QuadBezier(p0, p1, p2, t1);
+			XMFLOAT2 xy0 = EvalCurveXY(t0);
+			XMFLOAT2 xy1 = EvalCurveXY(t1);
 
-			XMFLOAT2 nrm0 = Norm2(Lerp2(n0, n2, t0));
-			XMFLOAT2 nrm1 = Norm2(Lerp2(n0, n2, t1));
+			XMFLOAT2 nrm0 = EvalNormal(t0);
+			XMFLOAT2 nrm1 = EvalNormal(t1);
 
 			xy0.x += nrm0.x * RIBBON_INSET; xy0.y += nrm0.y * RIBBON_INSET;
 			xy1.x += nrm1.x * RIBBON_INSET; xy1.y += nrm1.y * RIBBON_INSET;
@@ -244,15 +283,6 @@ void RopeHoldNote::Draw()
 			DrawRibbonQuad(corners, u0, u1, vFar, vNear, m_Texture);
 		}
 	}
-}
-
-XMFLOAT2 RopeHoldNote::GetCurveXY(float t) const
-{
-	XMFLOAT2 p0 = FaceToXY(m_Face, 0);
-	bool isStraight = (m_Face == m_EndFace);
-	XMFLOAT2 p2 = isStraight ? p0 : FaceToXY(m_EndFace, 0);
-	XMFLOAT2 p1 = isStraight ? p0 : CornerXY(m_Face, m_EndFace);
-	return QuadBezier(p0, p1, p2, t);
 }
 
 void RopeHoldNote::OnHit()

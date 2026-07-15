@@ -151,20 +151,23 @@ void Player::Update()
 		m_Position.x = xy.x;
 		m_Position.y = xy.y;
 
-		int startFace = holdingRope->GetFace();
-		int endFace   = holdingRope->GetEndFace();
-		m_GravityFace     = (t >= 0.5f) ? endFace : startFace;
-		m_TargetFace      = endFace;
+		// tが属するセグメント（面ペア）ごとに向きを補間する（全体の最短経路ではなく、
+		// 経由する面を実際に一つずつ辿ることで2/4回転以上のカーブでも正しい向きになる）
+		int segFaceA, segFaceB; float segLocalT;
+		holdingRope->GetSegmentInfo(t, segFaceA, segFaceB, segLocalT);
+
+		m_GravityFace     = (segLocalT >= 0.5f) ? segFaceB : segFaceA;
+		m_TargetFace      = holdingRope->GetEndFace();
 		m_LaneIndex       = LANE_CENTER;
 		m_TargetLaneIndex = LANE_CENTER;
 		m_IsMoving        = false;
 		m_IsGravityMoving = false;
 
-		// 開始面から終了面へ回転を補間
-		float rotStart = CalcFaceTargetRot(startFace).z;
-		float rotEnd   = CalcFaceTargetRot(endFace).z;
+		// 現在のセグメント内（隣接面同士＝常に90°差）で回転を補間
+		float rotStart = CalcFaceTargetRot(segFaceA).z;
+		float rotEnd   = CalcFaceTargetRot(segFaceB).z;
 		float diff = NormalizeAngleDelta(rotEnd - rotStart);
-		m_Rotation.z = rotStart + diff * t;
+		m_Rotation.z = rotStart + diff * segLocalT;
 	}
 	else
 	{

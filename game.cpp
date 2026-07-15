@@ -328,6 +328,8 @@ void Game_DebugUIDraw(void)
 		p.noteSpeed = roundf(p.noteSpeed * 10.0f) / 10.0f;
 	if (ImGui::SliderFloat("Hit Distance", &p.hitDistance,      0.5f,  10.0f, "%.2f u"))
 		p.hitDistance = roundf(p.hitDistance * 100.0f) / 100.0f;
+	if (ImGui::SliderFloat("Rainbow Corner Softness", &p.rainbowCornerSoftness, 0.0f, 1.0f, "%.2f"))
+		p.rainbowCornerSoftness = roundf(p.rainbowCornerSoftness * 100.0f) / 100.0f;
 
 	ImGui::SeparatorText("Player");
 	if (ImGui::SliderFloat("Lane Width",   &p.laneWidth,        0.5f,  5.0f,  "%.2f u"))

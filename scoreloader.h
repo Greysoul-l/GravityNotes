@@ -26,6 +26,13 @@ enum class ScoreWall
 	Right
 };
 
+// RopeHold(Rainbow) の回転方向。省略時は最短経路（従来互換）
+enum class RotationDir
+{
+	CW,
+	CCW
+};
+
 inline std::string NormalizeScoreToken(std::string value)
 {
 	std::transform(value.begin(), value.end(), value.begin(), [](unsigned char c) { return static_cast<char>(std::tolower(c)); });
@@ -56,6 +63,14 @@ inline ScoreWall ParseScoreWall(const std::string& value)
 	throw std::runtime_error("Invalid score wall: " + value);
 }
 
+inline RotationDir ParseRotationDir(const std::string& value)
+{
+	const std::string token = NormalizeScoreToken(value);
+	if (token == "cw")  return RotationDir::CW;
+	if (token == "ccw") return RotationDir::CCW;
+	throw std::runtime_error("Invalid rotation direction: " + value);
+}
+
 // スコアイベントの構造体
 struct ScoreEvent
 {
@@ -67,6 +82,9 @@ struct ScoreEvent
 	float     endBeat;
 	int       endLane;
 	ScoreWall endWall;
+	// RopeHold 専用：回転方向（"direction"キー省略時は hasDirection=false、最短経路を使う）
+	bool        hasDirection;
+	RotationDir direction;
 };
 
 // スコアデータの構造体
@@ -136,6 +154,11 @@ inline ScoreData LoadScore(const std::string& filePath)
 				// endWall: RopeHold専用（なければ wall と同値）
 				std::string endWallStr = event.value("endWall", std::string(""));
 				scoreEvent.endWall = endWallStr.empty() ? scoreEvent.wall : ParseScoreWall(endWallStr);
+
+				// direction: RopeHold の回転方向（"CW"/"CCW"）。省略時は最短経路
+				std::string directionStr = event.value("direction", std::string(""));
+				scoreEvent.hasDirection = !directionStr.empty();
+				scoreEvent.direction    = scoreEvent.hasDirection ? ParseRotationDir(directionStr) : RotationDir::CW;
 
 				scoreData.events.push_back(scoreEvent);
 			}

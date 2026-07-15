@@ -68,7 +68,7 @@ void Title_Initialize(void)
 
 	UnLockMouse();//マウスアンロック
 
-	g_pTitleBGM = LoadMP3("asset/sound/se/VSQSE_1189_wave_35.mp3");
+	g_pTitleBGM = LoadMP3("asset/sound/se/title_kaigan.mp3");
 	if (g_pTitleBGM)
 	{
 		PlaySound(g_pTitleBGM, true);

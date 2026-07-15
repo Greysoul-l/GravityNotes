@@ -1,6 +1,14 @@
 ﻿#pragma once
 #include "sprite3d.h"
 
+enum class NoteType {
+	Enemy,
+	Orb,
+	Barrier,
+	Hold,
+	RopeHold
+};
+
 class NoteBase : public Sprite3D
 {
 protected:
@@ -13,6 +21,8 @@ protected:
 public:
 	NoteBase() : Sprite3D(), m_LaneIndex(0), m_Face(0), m_Speed(0.0f), m_IsActive(false), m_IsHit(false) {}
 	virtual ~NoteBase() = default;
+
+	virtual NoteType GetType() const = 0;
 
 	virtual void Init(int lane, int face, float spawnZ, float speed, const char* modelPath);
 	virtual void Update();

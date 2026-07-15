@@ -36,6 +36,7 @@ static VinylState g_CurrentState = STATE_PLAYING; // 初期状態
 
 // 左側のレコードアルバムに対応するステージ数/曲数を管理
 static int g_MaxStages = 0;
+static int g_VisualStages = 0;                  // 表示用の仮想ディスク総数（最小公倍数で拡張）
 static int g_SelectedStage = 0;                  // 現在再生中のステージ
 static int g_NextStage = 0;                      // 次のステージ（遷移完了待ち）
 
@@ -45,7 +46,7 @@ static Sprite2D* g_pBackground = nullptr;         // レコードプレーヤー
 static Sprite2D* g_pMainVinyl = nullptr;          // 中央のメイン回転ディスク
 static Sprite2D* g_pRecordFrame = nullptr;        // メインディスクのフレーム画像
 static Sprite2D* g_pToneArm = nullptr;            // トーンアーム（レコードの針）
-static std::vector<ClickSprite2D*> g_pStageDisks;  // 左側の小さなディスクの列
+static std::vector<Sprite2D*> g_pStageDisks;  // 左側の小さなディスクの列
 static Sprite2D* g_pStartGameBG = nullptr;         // ゲーム開始ボタン背景
 static ClickFont* g_pStartGameText = nullptr;      // ゲーム開始テキスト
 
@@ -56,6 +57,9 @@ static float g_DiscSpeed = 0.5f;                  // 現在の回転速度（ス
 
 static float g_ScrollOffset = 0.0f;      // 現在のオフセット（滑らかに補間するためのfloat）
 static float g_ScrollTarget = 0.0f;      // 目標のオフセット
+
+static int g_MenuRepeatTimer = 0;        // リピート処理用のタイマー
+static SoundData* g_pMenuMoveSe = nullptr; // メニュー移動SE
 
 // JSONからの譜面データの管理とスコア表示（日本語コード部分より）
 static MultiLineFontRenderer* g_pScoreInfoText = nullptr;
@@ -68,6 +72,21 @@ static std::string g_LoadedBgmPath = "";          // 重複ロードを避ける
 // ==========================================
 // ヘルパー関数
 // ==========================================
+static int GetGCD(int a, int b)
+{
+	while (b != 0) {
+		int r = a % b;
+		a = b;
+		b = r;
+	}
+	return a;
+}
+
+static int GetLCM(int a, int b)
+{
+	if (a == 0 || b == 0) return 0;
+	return (a * b) / GetGCD(a, b);
+}
 
 // UTF-8からワイド文字列への変換
 static std::wstring Utf8ToWide(const std::string& utf8Str)
@@ -203,6 +222,7 @@ void StageSelect_Initialize(void)
 	// JSONシステムから楽曲リストをロード
 	g_ScoreSummaries = LoadScoreSummaries();
 	g_MaxStages = static_cast<int>(g_ScoreSummaries.size());
+	g_VisualStages = GetLCM(8, g_MaxStages);
 
 	const bool loaded = !g_ScoreSummaries.empty();
 	hal::dout << "[StageSelect] Score summary reload: "
@@ -219,6 +239,11 @@ void StageSelect_Initialize(void)
 	}
 
 	g_SelectedStage = 0;
+	g_SelectedScoreIndex = 0;
+	g_ScrollOffset = 0.0f;
+	g_ScrollTarget = 0.0f;
+	g_MenuRepeatTimer = 0;
+	g_pMenuMoveSe = LoadMP3("asset/sound/se/musicMove.mp3");
 
 	g_pResultBG = new Sprite2D(
 		{ SCREEN_WIDTH / 2.0f, SCREEN_HEIGHT / 2.0f },
@@ -240,14 +265,14 @@ void StageSelect_Initialize(void)
 	);
 
 	// 2. 左隅に縦に並ぶ小さなディスクの列を初期化
-	g_pStageDisks.resize(g_MaxStages, nullptr);
-	for (int i = 0; i < g_MaxStages; i++) {
+	g_pStageDisks.resize(g_VisualStages, nullptr);
+	for (int i = 0; i < g_VisualStages; i++) {
 		float posX = (SCREEN_WIDTH / 2.0f) - 550.0f;
 		float posY = 70.0f + (i * 130.0f); // 各ディスクを縦方向に等間隔で配置
 
-		std::wstring thumbPath = GetThumbnailPath(g_ScoreSummaries[i].thumbnail);
+		std::wstring thumbPath = GetThumbnailPath(g_ScoreSummaries[i % g_MaxStages].thumbnail);
 
-		g_pStageDisks[i] = new ClickSprite2D(
+		g_pStageDisks[i] = new Sprite2D(
 			{ posX, posY },
 			{ 110.0f, 110.0f },
 			0.0f,
@@ -337,13 +362,21 @@ void StageSelect_Initialize(void)
 // ==========================================
 void StageSelect_Update(void)
 {
+	// --- パート 1: キーボード/マウス of 入力制御 ---
+	bool isUpPressed = Input_IsActionDown(INPUT_ACTION_MENU_UP);
+	bool isDownPressed = Input_IsActionDown(INPUT_ACTION_MENU_DOWN);
+
+	if (isUpPressed || isDownPressed) {
+		g_MenuRepeatTimer++;
+	} else {
+		g_MenuRepeatTimer = 0;
+	}
+
 	// パーセンテージによる線形補間（lerp）の代わりに一定速度で移動する。
-	// 理由：%によるlerp（offset += (target-offset)*0.15f）は目標に近づくほど指数関数的に遅くなる。
-	// そのため、リストの端にあるディスク（オフセットが境界である0またはMAX_STAGESに近づくとき）は、
-	// 境界付近で数十フレームの間「カクつく/静止する」状態になり、最終的に閾値に達したときに突然ジャンプ（スナップ）してしまう。
 	// 固定の移動ステップを使用することで、一定のフレーム数で常に正確に目標値（target）に到達し、
 	// 均等な動きになり、カクつきの後にジャンプする現象が発生しなくなる。
-	const float SCROLL_STEP = 1.0f / 25.0f; // 約25フレームで1段階完了（トーンアームの昇降時間と同期）
+	// 通常時は25フレームかけてスクロールするが、長押し時は8フレームで完了するように速度を上げる。
+	const float SCROLL_STEP = (isUpPressed || isDownPressed) ? (1.0f / 12.0f) : (1.0f / 25.0f);
 	if (g_ScrollOffset < g_ScrollTarget) {
 		g_ScrollOffset += SCROLL_STEP;
 		if (g_ScrollOffset > g_ScrollTarget) g_ScrollOffset = g_ScrollTarget;
@@ -355,7 +388,7 @@ void StageSelect_Update(void)
 
 	float anchorY = 70.0f;
 	float spacing = 130.0f;
-	// --- パート 1: キーボード/マウスの入力制御 ---
+
 	// ディスクが安定して回転している状態（STATE_PLAYING）でのみ曲変更コマンドを受け付ける
 	if (g_CurrentState == STATE_PLAYING)
 	{
@@ -366,31 +399,22 @@ void StageSelect_Update(void)
 			g_NextStage = g_SelectedStage - 1;
 			if (g_NextStage < 0) g_NextStage = g_MaxStages - 1;
 			isInputPressed = true;
-			//ChangeSelectedScore(-1);
 			g_ScrollTarget -= 1.0f;  // 1段階上へスライド
+			if (g_pMenuMoveSe != nullptr) PlaySound(g_pMenuMoveSe, false);
 		}
 		else if (Input_IsActionTrigger(INPUT_ACTION_MENU_DOWN)) {
 			g_NextStage = g_SelectedStage + 1;
 			if (g_NextStage >= g_MaxStages) g_NextStage = 0;
 			isInputPressed = true;
-			//ChangeSelectedScore(1);
 			g_ScrollTarget += 1.0f;  // 1段階下へスライド
+			if (g_pMenuMoveSe != nullptr) PlaySound(g_pMenuMoveSe, false);
 		}
-
-		//// 左右矢印キーでJSONデータリスト内の楽曲を変更
-		//if (Keyboard_IsKeyDownTrigger(KK_LEFT)) {
-		//	ChangeSelectedScore(-1);
-		//}
-		//if (Keyboard_IsKeyDownTrigger(KK_RIGHT)) {
-		//	ChangeSelectedScore(1);
-		//}
 
 		// ステージが変更された場合、アームを持ち上げる一連のアクションを開始
 		if (isInputPressed) {
 			g_CurrentState = STATE_LIFTING_ARM;
 			if (g_pCurrentBgmData != nullptr) {
 				StopSound(g_pCurrentBgmData);
-				// UnloadSound(g_pCurrentBgmData);
 				g_pCurrentBgmData = nullptr;
 			}
 			g_LoadedBgmPath = "";
@@ -450,8 +474,34 @@ void StageSelect_Update(void)
 			);
 		}
 
-		// ディスク交換直後、トーンアームを新しいディスクに降下させる状態に移行
-		g_CurrentState = STATE_DROPPING_ARM;
+		// ボタンがまだ押しっぱなしである場合は、アームを降ろさずに長押しによる連続スクロールの入力を待つ
+		if (isUpPressed || isDownPressed) {
+			bool triggerUp = false;
+			bool triggerDown = false;
+
+			if (isUpPressed && g_MenuRepeatTimer >= 30 && (g_MenuRepeatTimer - 30) % 12 == 0) {
+				triggerUp = true;
+			}
+			if (isDownPressed && g_MenuRepeatTimer >= 30 && (g_MenuRepeatTimer - 30) % 12 == 0) {
+				triggerDown = true;
+			}
+
+			if (triggerUp) {
+				g_NextStage = g_SelectedStage - 1;
+				if (g_NextStage < 0) g_NextStage = g_MaxStages - 1;
+				g_ScrollTarget -= 1.0f;
+				if (g_pMenuMoveSe != nullptr) PlaySound(g_pMenuMoveSe, false);
+			}
+			else if (triggerDown) {
+				g_NextStage = g_SelectedStage + 1;
+				if (g_NextStage >= g_MaxStages) g_NextStage = 0;
+				g_ScrollTarget += 1.0f;
+				if (g_pMenuMoveSe != nullptr) PlaySound(g_pMenuMoveSe, false);
+			}
+		} else {
+			// ディスク交換直後、トーンアームを新しいディスクに降下させる状態に移行
+			g_CurrentState = STATE_DROPPING_ARM;
+		}
 		break;
 
 	case STATE_DROPPING_ARM:
@@ -499,14 +549,16 @@ void StageSelect_Update(void)
 	}
 
 	// --- パート 4: 左側の小さなディスク列の処理 ＆ マウスクリック ---
-	for (int i = 0; i < g_MaxStages; i++)
+	for (int i = 0; i < g_VisualStages; i++)
 	{
 		// 位置を計算するために、g_SelectedStageの代わりにg_ScrollOffsetを使用する
 		float offset = (float)i - g_ScrollOffset;
 
 		// float形式での円状のラッピング処理
-		while (offset < 0.0f)          offset += (float)g_MaxStages;
-		while (offset >= (float)g_MaxStages) offset -= (float)g_MaxStages;
+		float minOffset = -1.5f;
+		float maxOffset = (float)g_VisualStages - 1.5f;
+		while (offset < minOffset)          offset += (float)g_VisualStages;
+		while (offset >= maxOffset)         offset -= (float)g_VisualStages;
 
 		float posX = (SCREEN_WIDTH / 2.0f) - 550.0f;
 		float posY = anchorY + (offset * spacing);
@@ -514,20 +566,11 @@ void StageSelect_Update(void)
 		g_pStageDisks[i]->SetPos({ posX, posY });
 
 		// 選択中のディスク ＝ オフセットが0に最も近いディスク
-		if (i == g_SelectedStage) {
+		if ((i % g_MaxStages) == g_SelectedStage) {
 			g_pStageDisks[i]->SetRotation(g_VinylRotation * 2.0f);
 		}
 		else {
 			g_pStageDisks[i]->SetRotation(0.0f);
-		}
-
-		if (g_pStageDisks[i]->IsClick() && g_CurrentState == STATE_PLAYING && g_SelectedStage != i)
-		{
-			g_NextStage = i;
-			g_CurrentState = STATE_LIFTING_ARM;
-			if (g_pCurrentBgmData != nullptr) {
-				StopSound(g_pCurrentBgmData);
-			}
 		}
 	}
 
@@ -563,9 +606,14 @@ void StageSelect_Draw(void)
 	g_pMainVinyl->Draw(); // 3. 画面中央のメインディスクを描画
 	if (g_pRecordFrame != nullptr) g_pRecordFrame->Draw();
 	g_pToneArm->Draw();   // 4. メインディスクの上に重なるようにトーンアームを描画
-	// 2. 左側のすべての小さなディスクを描画
-	for (int i = 0; i < g_MaxStages; i++) {
-		if (g_pStageDisks[i] != nullptr) g_pStageDisks[i]->Draw();
+	// 2. 左側のすべての小さなディスクを描画（画面外にあるものは描画をスキップ）
+	for (int i = 0; i < g_VisualStages; i++) {
+		if (g_pStageDisks[i] != nullptr) {
+			float posY = g_pStageDisks[i]->GetPosY();
+			if (posY >= -60.0f && posY <= SCREEN_HEIGHT + 60.0f) {
+				g_pStageDisks[i]->Draw();
+			}
+		}
 	}
 
 	g_pScoreInfoText->Draw(); // 5. 最前面の右上に曲情報とスコアのJSONテキストを描画
@@ -586,6 +634,8 @@ void StageSelect_Finalize(void)
 		g_pCurrentBgmData = nullptr;
 	}
 	g_LoadedBgmPath = "";
+	UnloadSound(g_pMenuMoveSe);
+	g_pMenuMoveSe = nullptr;
 
 	SAFE_DELETE(g_pResultBG);
 	SAFE_DELETE(g_pBackground);
@@ -594,7 +644,7 @@ void StageSelect_Finalize(void)
 	SAFE_DELETE(g_pToneArm);
 	SAFE_DELETE(g_pScoreInfoText);
 
-	for (int i = 0; i < g_MaxStages; i++) {
+	for (int i = 0; i < g_VisualStages; i++) {
 		SAFE_DELETE(g_pStageDisks[i]);
 	}
 	g_pStageDisks.clear();

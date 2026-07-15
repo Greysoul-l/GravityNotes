@@ -1,4 +1,6 @@
-﻿#include "model.h"
+﻿#define NOMINMAX
+
+#include "model.h"
 #include "anim_sprite3d.h"
 
 #include "camera.h"
@@ -24,9 +26,13 @@ static XMMATRIX QuatToMatrix(const XMFLOAT4& q)
 	return XMMatrixRotationQuaternion(quat);
 }
 
-// $AssimpFbx$ ノードのベース名を抽出する（例: "chara_bone:Root_M_$AssimpFbx$_Rotation" → "chara_bone:Root_M"）
-static std::string GetAssimpFbxBaseName(const std::string& nodeName)
+// アロケーションを避けるため、suffixes のどれかで終わっているかだけを判定し、
+// 一致した場合はそのベース名の長さを返す。一致しない場合は0を返す。
+static size_t GetAssimpFbxBaseNameLength(const char* nodeName)
 {
+	if (!nodeName) return 0;
+	size_t len = strlen(nodeName);
+
 	static const char* suffixes[] = {
 		"_$AssimpFbx$_Translation",
 		"_$AssimpFbx$_Rotation",
@@ -46,13 +52,13 @@ static std::string GetAssimpFbxBaseName(const std::string& nodeName)
 	for (const char* suffix : suffixes)
 	{
 		size_t suffixLen = strlen(suffix);
-		if (nodeName.size() > suffixLen &&
-			nodeName.compare(nodeName.size() - suffixLen, suffixLen, suffix) == 0)
+		if (len > suffixLen &&
+			strcmp(nodeName + (len - suffixLen), suffix) == 0)
 		{
-			return nodeName.substr(0, nodeName.size() - suffixLen);
+			return len - suffixLen;
 		}
 	}
-	return "";
+	return 0;
 }
 
 // ノード階層を再帰的に走査してボーン最終行列を計算する内部関数
@@ -70,19 +76,14 @@ static void CalcBoneMatricesRecursive(
 	const std::vector<std::string>* overrideBoneNames = nullptr,
 	bool isOverrideActive = false)
 {
-	std::string nodeName = node->mName.data;
+	const char* nodeNameCStr = node->mName.data;
 
 	// このノードのローカル変換（デフォルトはノードのバインドポーズ変換）
 	XMMATRIX nodeTransform = AiMatrixToXMMatrix(node->mTransformation);
 
 	// $AssimpFbx$ ノードの処理:
-	// Assimpは FBX のノード変換を Translation/Rotation/Scaling 等の複数ノードに分解する。
-	// アニメーションチャンネルは元のノード名（分解前）に対してS*R*Tを統合した値を持つため、
-	// $AssimpFbx$ ノードの変換をそのまま残すと二重変換になる。
-	// 対応するアニメーションチャンネルが存在する場合、$AssimpFbx$ ノードの変換を単位行列に置き換える。
-	std::string baseName = GetAssimpFbxBaseName(nodeName);
-	bool isFbxSubNode = !baseName.empty();
-	std::string checkName = isFbxSubNode ? baseName : nodeName;
+	size_t baseLen = GetAssimpFbxBaseNameLength(nodeNameCStr);
+	bool isFbxSubNode = (baseLen > 0);
 
 	// オーバーライド状態の決定
 	bool currentOverrideActive = isOverrideActive;
@@ -90,10 +91,22 @@ static void CalcBoneMatricesRecursive(
 	{
 		for (const auto& boneName : *overrideBoneNames)
 		{
-			if (checkName == boneName)
+			if (isFbxSubNode)
 			{
-				currentOverrideActive = true;
-				break;
+				if (boneName.size() == baseLen &&
+					strncmp(nodeNameCStr, boneName.c_str(), baseLen) == 0)
+				{
+					currentOverrideActive = true;
+					break;
+				}
+			}
+			else
+			{
+				if (strcmp(nodeNameCStr, boneName.c_str()) == 0)
+				{
+					currentOverrideActive = true;
+					break;
+				}
 			}
 		}
 	}
@@ -102,11 +115,14 @@ static void CalcBoneMatricesRecursive(
 	{
 		// 対応する元ノードにアニメーションチャンネルが存在する場合は変換を無視
 		const auto& targetMap = (currentOverrideActive && overrideNodeToAnimIndex) ? *overrideNodeToAnimIndex : nodeToAnimIndex;
+		std::string baseName(nodeNameCStr, baseLen);
 		if (targetMap.find(baseName) != targetMap.end())
 		{
 			nodeTransform = XMMatrixIdentity();
 		}
 	}
+
+	std::string nodeName(nodeNameCStr); // マップ検索キーとしてアロケーション
 
 	// アニメーションチャンネルがあれば補間値で上書き
 	if (currentOverrideActive && overrideClip && overrideNodeToAnimIndex)
@@ -230,12 +246,24 @@ XMFLOAT3 AnimSprite3D::InterpolateVec3(const std::vector<KeyVec3>& keys, double 
 
 	// キーフレームを二分探索で見つける
 	size_t keyIndex = 0;
-	for (size_t i = 0; i + 1 < keys.size(); i++)
+	size_t low = 0;
+	size_t high = keys.size() - 2;
+	while (low <= high)
 	{
-		if (time >= keys[i].time && time < keys[i + 1].time)
+		size_t mid = low + (high - low) / 2;
+		if (time >= keys[mid].time && time < keys[mid + 1].time)
 		{
-			keyIndex = i;
+			keyIndex = mid;
 			break;
+		}
+		else if (time < keys[mid].time)
+		{
+			if (mid == 0) break;
+			high = mid - 1;
+		}
+		else
+		{
+			low = mid + 1;
 		}
 	}
 
@@ -284,12 +312,24 @@ XMFLOAT4 AnimSprite3D::InterpolateQuat(const std::vector<KeyQuat>& keys, double 
 
 	// キーフレームを二分探索で見つける
 	size_t keyIndex = 0;
-	for (size_t i = 0; i + 1 < keys.size(); i++)
+	size_t low = 0;
+	size_t high = keys.size() - 2;
+	while (low <= high)
 	{
-		if (time >= keys[i].time && time < keys[i + 1].time)
+		size_t mid = low + (high - low) / 2;
+		if (time >= keys[mid].time && time < keys[mid + 1].time)
 		{
-			keyIndex = i;
+			keyIndex = mid;
 			break;
+		}
+		else if (time < keys[mid].time)
+		{
+			if (mid == 0) break;
+			high = mid - 1;
+		}
+		else
+		{
+			low = mid + 1;
 		}
 	}
 
@@ -313,6 +353,8 @@ XMFLOAT4 AnimSprite3D::InterpolateQuat(const std::vector<KeyQuat>& keys, double 
 
 void AnimSprite3D::UpdateAnimation(float dt)
 {
+	m_BoneMatricesUpdated = false;
+
 	// ブレンド処理
 	if (m_BlendState.isBlending)
 	{
@@ -365,7 +407,7 @@ void AnimSprite3D::UpdateAnimation(float dt)
 	// オーバーライド用の時間更新
 	if (m_OverrideAnimState.isActive && m_OverrideAnimState.play)
 	{
-		double overrideTicksPerSecond = m_OverrideAnimState.clip.tps;
+		double overrideTicksPerSecond = m_OverrideAnimState.clip->tps;
 		if (overrideTicksPerSecond <= 0.0)
 		{
 			overrideTicksPerSecond = 24.0;
@@ -373,11 +415,11 @@ void AnimSprite3D::UpdateAnimation(float dt)
 
 		m_OverrideAnimState.time += dt * overrideTicksPerSecond;
 
-		if (m_OverrideAnimState.time >= m_OverrideAnimState.clip.duration)
+		if (m_OverrideAnimState.time >= m_OverrideAnimState.clip->duration)
 		{
 			if (m_OverrideAnimState.loop)
 			{
-				double duration = m_OverrideAnimState.clip.duration;
+				double duration = m_OverrideAnimState.clip->duration;
 				if (duration > 0.0)
 				{
 					m_OverrideAnimState.time = fmod(m_OverrideAnimState.time, duration);
@@ -387,7 +429,7 @@ void AnimSprite3D::UpdateAnimation(float dt)
 			}
 			else
 			{
-				m_OverrideAnimState.time = m_OverrideAnimState.clip.duration;
+				m_OverrideAnimState.time = m_OverrideAnimState.clip->duration;
 				m_OverrideAnimState.play = false;
 			}
 		}
@@ -401,6 +443,9 @@ void AnimSprite3D::UpdateBoneMatrices()
 	if (!m_Model || !m_Model->AiScene || !m_Model->HasSkinning)
 		return;
 
+	if (m_BoneMatricesUpdated)
+		return;
+
 	// ブレンド中の場合は特別処理
 	if (m_BlendState.isBlending)
 	{
@@ -411,7 +456,7 @@ void AnimSprite3D::UpdateBoneMatrices()
 		
 		BoneMatrices targetMatrices;
 		AnimationState tempState;
-		tempState.clip = &m_BlendState.targetClip;
+		tempState.clip = m_BlendState.targetClip;
 		tempState.time = 0.0;
 		UpdateBoneMatricesForState(tempState, targetMatrices);
 		
@@ -450,7 +495,7 @@ void AnimSprite3D::UpdateBoneMatrices()
 
 	if (m_OverrideAnimState.isActive && m_OverrideAnimState.play)
 	{
-		pOverrideClip = &m_OverrideAnimState.clip;
+		pOverrideClip = m_OverrideAnimState.clip;
 		overrideTime = m_OverrideAnimState.time;
 		pOverrideNodeToAnimIndex = &m_OverrideAnimState.nodeToAnimIndex;
 		pOverrideBoneNames = &m_OverrideAnimState.startBoneNames;
@@ -472,6 +517,7 @@ void AnimSprite3D::UpdateBoneMatrices()
 	);
 
 	m_BoneMatrices.boneCount = m_Model->TotalBoneCount;
+	m_BoneMatricesUpdated = true;
 }
 
 void AnimSprite3D::Draw(void)
@@ -644,14 +690,25 @@ bool AnimSprite3D::PlayAnimationByName(const char* animName, bool loop)
             m_Model->NodeToAnimIndex[foundAnim->mChannels[c]->mNodeName.data] = c;
         }
 
-        AnimationClip clip = ExtractAnimationFromAssimp(foundAnim);
+        // キャッシュから取得、無ければ生成
+        const AnimationClip* pClip = nullptr;
+        auto it = m_Model->AnimationClips.find(animName);
+        if (it != m_Model->AnimationClips.end())
+        {
+            pClip = it->second;
+        }
+        else
+        {
+            AnimationClip* newClip = new AnimationClip(ExtractAnimationFromAssimp(foundAnim));
+            m_Model->AnimationClips[animName] = newClip;
+            pClip = newClip;
+        }
         
         // 別のアニメーションが再生中の場合、ブレンド遷移を開始
         if (m_AnimState.play && m_AnimState.currentAnimName != animName)
         {
-            
             m_BlendState.previousState = m_AnimState;
-            m_BlendState.targetClip = clip;
+            m_BlendState.targetClip = pClip;
             m_BlendState.isBlending = true;
             m_BlendState.blendElapsed = 0.0;
             m_BlendState.blendDuration = 0.3;
@@ -659,7 +716,7 @@ bool AnimSprite3D::PlayAnimationByName(const char* animName, bool loop)
         else
         {
             // 初回起動時は通常の再生開始
-            SetAnimationClip(clip);
+            SetAnimationClip(pClip);
             PlayAnimation(loop);
         }
         
@@ -706,10 +763,22 @@ bool AnimSprite3D::PlayAnimationByIndex(unsigned int index, bool loop)
         m_Model->NodeToAnimIndex[aiAnim->mChannels[c]->mNodeName.data] = c;
     }
 
-    AnimationClip clip = ExtractAnimationFromAssimp(aiAnim);
-    SetAnimationClip(clip);
+    const char* animName = aiAnim->mName.data;
+    const AnimationClip* pClip = nullptr;
+    auto it = m_Model->AnimationClips.find(animName);
+    if (it != m_Model->AnimationClips.end())
+    {
+        pClip = it->second;
+    }
+    else
+    {
+        AnimationClip* newClip = new AnimationClip(ExtractAnimationFromAssimp(aiAnim));
+        m_Model->AnimationClips[animName] = newClip;
+        pClip = newClip;
+    }
+    SetAnimationClip(pClip);
     PlayAnimation(loop);
-    m_AnimState.currentAnimName = aiAnim->mName.data;
+    m_AnimState.currentAnimName = animName;
 
     return true;
 }
@@ -804,7 +873,20 @@ bool AnimSprite3D::PlayOverrideAnimation(const char* animName, const std::vector
 			m_OverrideAnimState.nodeToAnimIndex[foundAnim->mChannels[c]->mNodeName.data] = c;
 		}
 
-		m_OverrideAnimState.clip = ExtractAnimationFromAssimp(foundAnim);
+		const AnimationClip* pClip = nullptr;
+		auto it = m_Model->AnimationClips.find(animName);
+		if (it != m_Model->AnimationClips.end())
+		{
+			pClip = it->second;
+		}
+		else
+		{
+			AnimationClip* newClip = new AnimationClip(ExtractAnimationFromAssimp(foundAnim));
+			m_Model->AnimationClips[animName] = newClip;
+			pClip = newClip;
+		}
+
+		m_OverrideAnimState.clip = pClip;
 		m_OverrideAnimState.time = 0.0;
 		m_OverrideAnimState.play = true;
 		m_OverrideAnimState.loop = loop;

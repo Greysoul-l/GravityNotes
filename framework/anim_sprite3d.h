@@ -53,14 +53,14 @@ struct AnimationBlendState {
 	bool isBlending = false;          // ブレンド中フラグ
 	double blendDuration = 0.3;       // ブレンド時間（秒）
 	double blendElapsed = 0.0;        // ブレンド経過時間（秒）
-	AnimationClip targetClip;         // 遷移先アニメーション
+	const AnimationClip* targetClip = nullptr; // 遷移先アニメーションポインタ
 	AnimationState previousState;     // 遷移前のアニメーション状態（スナップショット）
 };
 
 // 部分アニメーション再生（オーバーライド）状態
 struct OverrideAnimationState {
 	bool isActive = false;             // 部分オーバーライド有効フラグ
-	AnimationClip clip;                // 部分オーバーライド用アニメーションクリップ
+	const AnimationClip* clip = nullptr; // 部分オーバーライド用アニメーションクリップポインタ
 	double time = 0.0;                 // 現在の再生位置（単位: ティック）
 	bool play = false;                 // 再生中フラグ
 	bool loop = true;                  // ループフラグ
@@ -73,11 +73,11 @@ class AnimSprite3D : public Sprite3D
 {
 protected:
 	AnimationState m_AnimState;
-	AnimationClip m_AnimClip;
 	AnimationBlendState m_BlendState;  // アニメーション遷移用
 	OverrideAnimationState m_OverrideAnimState; // 部分アニメーションオーバーライド用
 	BoneMatrices m_BoneMatrices;
 	int m_BoneCount = 0;
+	bool m_BoneMatricesUpdated = false;
 
 	// Assimp用ボーンマッピング
 	std::vector<aiBone*> m_AiBones;
@@ -89,7 +89,7 @@ protected:
 
 public:
 	AnimSprite3D(const XMFLOAT3& pos, const XMFLOAT3& scale, const XMFLOAT3& rot, const char* pass, SHADERTYPE st)
-		: Sprite3D(pos, scale, rot, pass, st)
+		: Sprite3D(pos, scale, rot, pass, st), m_BoneMatricesUpdated(false)
 	{
 		// Sprite3D のコンストラクタでモデルが読み込まれた後、ボーン情報を初期化
 		InitializeBones();
@@ -223,10 +223,9 @@ public:
 
 private:
 	// 内部用：FBX内のアニメーションから AnimationClip を作成・設定
-	void SetAnimationClip(const AnimationClip& clip)
+	void SetAnimationClip(const AnimationClip* pClip)
 	{
-		m_AnimClip = clip;
-		m_AnimState.clip = &m_AnimClip;
+		m_AnimState.clip = pClip;
 		m_AnimState.time = 0.0;
 		m_AnimState.play = false;
 	}

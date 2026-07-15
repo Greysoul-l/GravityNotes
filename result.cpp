@@ -365,6 +365,24 @@ void Result_Update(void)
 	//③処理
 	g_pChangeSceneText->Update();
 
+	// 決定キーまたはクリックの判定
+	if (g_pChangeSceneText->IsClick() || Input_IsActionTrigger(INPUT_ACTION_DECIDE))
+	{
+		float animEndTime = RANK_ANIM_START_TIME + RANK_ANIM_DURATION;
+		if (g_ResultSceneTimer < animEndTime)
+		{
+			// アニメーション中ならスキップ
+			g_ResultSceneTimer = animEndTime;
+		}
+		else
+		{
+			// アニメーション終了後ならシーン遷移
+			SetPlayJson("");//resultを抜けるときに初期化
+			SetSceneFade(SCENE_STAGESELECT);
+			return;
+		}
+	}
+
 	// デバッグ用: Rキーでアニメーションをリスタート（直接インクルード削除に伴いコメントアウト）
 	//if (Keyboard_IsKeyDownTrigger(KK_R))
 	//{
@@ -465,12 +483,7 @@ void Result_Update(void)
 		g_pRankTextre->SetSize({ 1500.0f, 1500.0f }); // 初期サイズは大きめ
 	}
 
-	//ClickFontがクリックされた、または決定ボタンが押された
-	if (g_pChangeSceneText->IsClick() || Input_IsActionTrigger(INPUT_ACTION_DECIDE))
-	{
-		SetPlayJson("");//resultを抜けるときに初期化
-		SetSceneFade(SCENE_STAGESELECT);
-	}
+
 }
 
 void Result_Draw(void)

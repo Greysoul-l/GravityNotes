@@ -15,6 +15,8 @@ public:
 	HoldNote() : NoteBase() {}
 	~HoldNote();
 
+	NoteType GetType() const override { return NoteType::Hold; }
+
 	// lane    : 始点レーン (0-2)
 	// endLane : 終点レーン (0-2)
 	// face    : 壁面 (FACE_*)
@@ -22,7 +24,7 @@ public:
 	// endZ    : 終点の初期Z座標
 	// speed   : ノーツ速度
 	// bpm     : 曲のBPM
-	void Init(int lane, int endLane, int face, float initZ, float endZ, float speed, float bpm);
+	void Init(int lane, int endLane, int face, float initZ, float endZ, float speed, float bpm, float beat, float endBeat);
 	void Update() override;
 	void Draw()   override;
 

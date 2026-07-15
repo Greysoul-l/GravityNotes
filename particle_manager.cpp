@@ -33,8 +33,11 @@ void ParticleManager::Emit(const Particle& particle)
 		return;
 
 	if (m_Particles.size() >= m_MaxParticles)
-		// 上限時は古い粒子を捨て、最新エフェクトを優先する。
-		m_Particles.erase(m_Particles.begin());
+	{
+		// 上限時は最も古い粒子（インデックス0）を末尾の粒子で上書きして末尾を消すことで、O(1)で要素数を減らし、O(N)シフトを避ける
+		m_Particles[0] = m_Particles.back();
+		m_Particles.pop_back();
+	}
 
 	m_Particles.push_back(particle);
 }
